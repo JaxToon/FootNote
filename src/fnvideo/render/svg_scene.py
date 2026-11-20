@@ -671,9 +671,13 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         term = str(prop.get("term", "Konsep"))
         definition = str(prop.get("definition", scene.purpose))
         pad = 56
-        x, y, w = L.left, top + 20, usable
+        visual = bool(prop.get("icon") or prop.get("diagram"))
+        split = visual and not portrait  # 16:9: card left, the episode's visual right
+        x, y, w = L.left, top + 20, (usable * 0.5 if split else usable)
+        ccx = x + w / 2
+        vcx, vw = (L.left + usable * 0.76, usable * 0.46) if split else (cx, usable)
         term_svg, end = text_block(
-            cx,
+            ccx,
             y + pad + T["term"] * 0.8,
             term,
             size=T["term"],
@@ -683,7 +687,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             max_chars=L.chars(T["term"], w - 2 * pad, 0.6),
         )
         def_svg, end = text_block(
-            cx,
+            ccx,
             end + T["body"] * 1.6,
             definition,
             size=T["body"],
@@ -696,34 +700,37 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         els.add("term", term_svg, "slide")
         els.add("definition", def_svg, "slide")
         label_y = y + card_h + 90
-        els.add("label", pill(cx, label_y, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
+        els.add("label", pill(ccx, label_y, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
+        # the visual starts below the label pill (9:16) or at the top of its column (16:9)
+        vis_top = (top + 20) if split else label_y + T["label"] * 1.6
         if prop.get("icon") and not prop.get(
             "diagram"
         ):  # the episode's concrete instance of the term (clarity rule 6)
-            free = bottom - (label_y + T["label"] * 1.6)
+            free = bottom - vis_top
             size = max(160.0, min(420.0, free - (T["node"] * 2.2 if prop.get("icon_label") else 0)))
-            icy = label_y + T["label"] * 1.6 + size / 2 + 10
-            body = f'<g data-idle="bob">{icon(str(prop["icon"]), cx, icy, size)}</g>'
+            icy = vis_top + size / 2 + 10
+            body = f'<g data-idle="bob">{icon(str(prop["icon"]), vcx, icy, size)}</g>'
             if prop.get("icon_label"):
                 body += svg_text(
-                    cx,
+                    vcx,
                     icy + size / 2 + T["node"] * 1.2,
                     str(prop["icon_label"]),
                     size=T["node"],
                     fill=th.ink,
                     weight=700,
-                    max_chars=L.chars(T["node"]),
+                    max_chars=L.chars(T["node"], vw),
                 )
             els.add("icon", body)
         dg = prop.get("diagram")
         if dg:
             # Generic Z -> X, Z -> Y picture under the card, labelled with this episode's
             # example (clarity rule 6). Elements: z, x, y, arrow-zx, arrow-zy, xy.
-            y0 = y + card_h + 90 + T["label"] * 2.4
+            y0 = vis_top if split else y + card_h + 90 + T["label"] * 2.4
             span = bottom - y0
             r = min(110.0, span * 0.17)
             zy, xy_y = y0 + r + 10, y0 + span * 0.66
-            dx = min(usable * 0.34, 320.0)
+            dx = min(vw * 0.36 if split else usable * 0.34, 320.0)
+            cx = vcx  # the diagram is centred in its column
 
             def node(
                 ncx: float, ncy: float, letter: str, label: str, fill: str, side: bool = False
@@ -793,11 +800,34 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             "draw",
             seq=-1,
         )
-        for i, label in enumerate(labels[:2]):
-            color = colors[i]
-            values = (
+
+        def series_values(i: int) -> list[float]:
+            return (
                 [float(v) for v in data[i]] if data and i < len(data) else _illustrative_series(i)
             )
+
+        def end_y(i: int) -> float:  # y of the line's last point (where its icon rests)
+            vals = series_values(i)
+            lo_, span_ = min(vals), (max(vals) - min(vals)) or 1.0
+            band = (0.08, 0.62) if i == 0 else (0.30, 0.92)
+            return py1 - (band[0] + (vals[-1] - lo_) / span_ * (band[1] - band[0])) * (py1 - py0)
+
+        # Each icon rides just right of its line's leading point (never on a line). At rest the
+        # two icons must not overlap: if the lines end close together they spread apart
+        # vertically (data-rest, eased in at the end of the draw), the lower one never below
+        # the x axis.
+        rests = [0.0, 0.0]
+        if len(labels) >= 2 and len(icons) >= 2:
+            ends = [end_y(0), end_y(1)]
+            upper, lower = (0, 1) if ends[0] < ends[1] else (1, 0)
+            sep = head * 1.08
+            spread = max(0.0, sep - (ends[lower] - ends[upper])) / 2
+            low_c = min(ends[lower] + spread, py1 - 10 - head / 2)  # stays above the x axis
+            up_c = min(ends[upper], low_c - sep)
+            rests[lower], rests[upper] = low_c - ends[lower], up_c - ends[upper]
+        for i, label in enumerate(labels[:2]):
+            color = colors[i]
+            values = series_values(i)
             n = len(values)
             x_labels = prop.get("x_labels") or (DEFAULT_MONTHS if not data and n == 6 else [])
             lo, hi = min(values), max(values)
@@ -807,7 +837,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             )  # offset so lines don't overlap
             points = [
                 (
-                    x0 + 70 + j * (x1 - x0 - 150) / max(1, n - 1),
+                    x0 + 70 + j * (x1 - x0 - 110 - head) / max(1, n - 1),  # room for the icon
                     py1 - (band_lo + (v - lo) / span * (band_hi - band_lo)) * (py1 - py0),
                 )
                 for j, v in enumerate(values)
@@ -852,7 +882,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             )
             if i < len(icons):
                 parts.append(
-                    f'<g data-head="1" data-lift="{head * 0.62:.1f}">{icon(str(icons[i]), 0, 0, head)}</g>'
+                    f'<g data-head="1" data-dx="{head * 0.6:.1f}" data-rest="{rests[i]:.1f}">{icon(str(icons[i]), 0, 0, head)}</g>'
                 )
             else:
                 parts.append(
@@ -921,12 +951,18 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             vy = top + slot + vs_h / 2
         else:
             col = (usable - 120) / n
+            size = min(col * 0.46, (bottom - top) * 0.5)
+            d_max = max(
+                (len(split_lines(str(it.get("definition", "")), L.chars(T["body"], col)))
+                 for it in items), default=1,
+            )  # fmt: skip
+            block = size + T["term"] * 1.25 + T["body"] * (1.3 + 1.15 * (d_max - 1)) + 20
+            y0 = top + max(0.0, (bottom - top - block) / 2)  # centred in the content zone
             for i, item in enumerate(items):
                 ccx = L.left + col / 2 + i * (col + 120)
-                size = min(col * 0.42, (bottom - top) * 0.42)
-                term_y = top + size + T["term"]
+                term_y = y0 + size + T["term"]
                 idle = "bob" if i == 0 else "sway"
-                body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), ccx, top + size / 2, size)}</g>'
+                body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), ccx, y0 + size / 2, size)}</g>'
                 term = str(item.get("term", ""))
                 # shrink a long term to stay on one line (never below 80% of the scale)
                 tsize = fit_size(term, T["term"], col, DISPLAY_CAP_EM)
@@ -945,10 +981,11 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     max_chars=L.chars(T["body"], col),
                 )
                 els.add(f"side-{i}", body + d_svg, "pop" if i == 0 else "slide")
-            vy = (top + bottom) / 2
+            vy = y0 + size + T["term"] * 0.62  # level with the terms
         if len(items) == 2:
+            on_accent = NAVY if th.accent == YELLOW else PAPER  # readable on its pill
             els.add("vs", pill(cx, vy, str(prop.get("divider", "VS")), T["label"], fill=th.accent,
-                               text_fill=PAPER), seq=0.5)  # fmt: skip
+                               text_fill=on_accent), seq=0.5)  # fmt: skip
 
     elif template == "causal_diagram":
         nodes = prop.get(
@@ -963,14 +1000,26 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         with_icons = any(n.get("icon") for n in nodes)
         node_w = usable * (0.47 if portrait else 0.34)
         zone_bottom = bottom - label_space
-        if with_icons:
+        cause_card_w = node_w * (0.8 if portrait else 0.62)
+        if with_icons and portrait:
             zone = zone_bottom - top
-            # portrait: cause on top, effects low enough that the arrows have real length
-            top_icon = zone * (0.25 if portrait else 0.36)
-            low_icon = zone * (0.27 if portrait else 0.31)
-            low_y = top + zone * (0.64 if portrait else 0.62)
+            # cause on top, effects low enough that the arrows have real length
+            top_icon, low_icon = zone * 0.25, zone * 0.27
+            low_y = top + zone * 0.64
             centers = [
                 (cx, top + top_icon / 2 + 10, top_icon),
+                (L.left + node_w / 2, low_y, low_icon),
+                (L.right - node_w / 2, low_y, low_icon),
+            ]
+        elif with_icons:
+            # 16:9 is short: the cause's card sits beside its icon (not under it) and the
+            # effects sit on the zone floor, so the arrows from the cause run downwards.
+            zone = zone_bottom - top
+            top_icon, low_icon = zone * 0.30, zone * 0.26
+            card_h = T["node"] * 2.25  # one-line label_card
+            low_y = zone_bottom - card_h - 18 - low_icon / 2
+            centers = [
+                (cx - (cause_card_w + 28) / 2, top + top_icon / 2 + 4, top_icon),
                 (L.left + node_w / 2, low_y, low_icon),
                 (L.right - node_w / 2, low_y, low_icon),
             ]
@@ -988,7 +1037,14 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             accent = YELLOW if idx == 0 else "#FFFFFF"
             if with_icons:
                 ico = icon(str(node["icon"]), ncx, ncy, size) if node.get("icon") else ""
-                card_w = node_w * 0.8 if idx == 0 else node_w
+                card_w = cause_card_w if idx == 0 else node_w
+                if idx == 0 and not portrait:  # card beside the icon; arrows leave the icon
+                    card_svg, _ = label_card(
+                        ncx + size / 2 + 28 + card_w / 2, ncy - T["node"] * 1.125, label,
+                        card_w, T["node"], accent, th=th,
+                    )  # fmt: skip
+                    bodies.append((ico + card_svg, ncy - size / 2, ncy + size / 2))
+                    continue
                 card_svg, card_bottom = label_card(
                     ncx, ncy + size / 2 + 18, label, card_w, T["node"], accent, th=th
                 )
@@ -1004,7 +1060,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         # an arrowhead aligned to the line that appears when the line arrives (data-reveal).
         for k in range(1, len(bodies)):
             sgn = -1 if centers[k][0] < cx else 1
-            sx = cx + sgn * 34
+            sx = centers[0][0] + sgn * 34
             ex, ey = centers[k][0] - sgn * centers[k][2] * 0.08, bodies[k][1] - 26
             els.add(
                 f"arrow-{k}", arrow_svg(sx, sy, ex, ey, th.line, width=12), "draw", seq=2 * k - 1
@@ -1115,7 +1171,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         ][:3]
         box_w = min(usable * 0.27, 300)
         gap = (usable - 3 * box_w) / 2
-        y = top + (260 if portrait else 100)
+        sup = int(T["supporting"] * 1.2)
+        block = box_w + T["node"] * 2.4 + sup * 2.6  # boxes + labels + supporting line
+        y = top + max(0.0, (bottom - top - block) / 2)  # centred in the content zone
         below = y + box_w
         for i, item in enumerate(items):
             x = L.left + i * (box_w + gap)
@@ -1149,26 +1207,21 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     max_chars=8,
                 )
             els.add(f"item-{i}", body)
-            if i < len(items) - 1:
+            if i < len(items) - 1:  # a real arrow across the gap, head aligned (arrow_svg)
+                ay = y + box_w / 2
                 els.add(
                     f"link-{i}",
-                    svg_text(
-                        x + box_w + gap / 2,
-                        y + box_w / 2 + 20,
-                        "→",
-                        size=64,
-                        fill=YELLOW,
-                        max_chars=4,
-                    ),
-                    "slide",
+                    arrow_svg(x + box_w + 36, ay, x + box_w + gap - 36, ay, th.line, width=12),
+                    "draw",
                 )
         svg, _ = text_block(
             cx,
-            below + T["supporting"] * 2.2,
+            below + sup * 1.9,
             str(prop.get("supporting_text", "Hubungan belum tentu sebab-akibat")),
-            size=T["supporting"],
-            fill=muted,
-            max_chars=L.chars(T["supporting"], usable * 0.9),
+            size=sup,
+            fill=th.ink,  # content, not secondary (clarity rule 9)
+            weight=700,
+            max_chars=L.chars(sup, usable * 0.9),
         )
         els.add("supporting", svg, "slide")  # fmt: skip
 
@@ -1698,8 +1751,9 @@ def build_scene_html(
             const pt = series.getPointAtLength(len * drawP);
             if (h.tagName === 'circle') {{ h.setAttribute('cx', pt.x); h.setAttribute('cy', pt.y); h.setAttribute('r', 20 + (drawP >= 1 ? 3 * Math.sin(t * 4) : 0)); }}
             else {{
-              const lift = Number(h.dataset.lift || 0), bob = drawP >= 1 ? Math.sin(t * 3.2) * 6 : 0;
-              h.setAttribute('transform', `translate(${{pt.x}} ${{pt.y - lift + bob}}) rotate(${{drawP < 1 ? Math.sin(t * 9) * 6 : 0}})`);
+              const dx = Number(h.dataset.dx || 0), bob = drawP >= 1 ? Math.sin(t * 3.2) * 6 : 0;
+              const rest = Number(h.dataset.rest || 0) * easeOut(clamp((drawP - 0.8) / 0.2));
+              h.setAttribute('transform', `translate(${{pt.x + dx}} ${{pt.y + rest + bob}}) rotate(${{drawP < 1 ? Math.sin(t * 9) * 6 : 0}})`);
             }}
           }}
         }});

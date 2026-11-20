@@ -16,7 +16,8 @@ voice:
   speed: 1.0
 editorial_status: draft
 sources: []
-# Long v2 — same example and clarity rules as the short (CLAUDE.md "Clarity rules",
+# Long v3 — D-019 bold dark art direction (dark scene backgrounds, headline on every
+# explanation scene, caption box). Same example, data and clarity rules as the short (CLAUDE.md "Clarity rules",
 # docs/HANDOFF_CLARITY.md). Chapter structure kept:
 #   1 problem → 2 intuition → 3 mechanism → 4 real-world example → 5 common mistakes → 6 recap
 # DRAFT OUTLINE-LEVEL SCRIPT (~3 min). It is NOT yet the 8–12 min deliverable; each chapter
@@ -36,11 +37,12 @@ scenes:
       - text: "juga ikut naik."
         highlight: ["ikut naik"]
     character: {presenter: "off", mascot: "on", mascot_pose: "wave", expression: "happy"}
-    background: "paper"
+    background: "purple"
     template: "title_question"
     props:
       chapter: "1 · Masalah"
-      headline: "FAKTA ANEH"
+      headline: "FAKTA ANEH SOAL DATA"
+      headline_accent: ["DATA"]
       side_icons:
         - {icon: ice_cream, label: "Es krim", trend: up}
         - {icon: swimmer, label: "Tenggelam", trend: up}
@@ -63,7 +65,7 @@ scenes:
       - text: "Tapi, benarkah begitu?"
         highlight: ["benarkah"]
     character: {presenter: "off", mascot: "on", mascot_pose: "shrug", expression: "skeptical"}
-    background: "yellow"
+    background: "coral"
     template: "title_question"
     props:
       headline: "ES KRIM → TENGGELAM?"
@@ -82,35 +84,40 @@ scenes:
   - id: data
     title: "Datanya"
     purpose: "Memperlihatkan dua variabel yang bergerak bersama, dengan r terhitung."
-    narration: "Mari kita lihat datanya. Dari Januari sampai Juni, dua garis ini naik hampir bersamaan."
+    narration: "Mari kita lihat datanya selama setahun. Dua garis ini naik turun hampir bareng."
     captions:
-      - text: "Mari kita lihat datanya."
-        highlight: ["datanya"]
-      - text: "Dari Januari sampai Juni,"
-      - text: "dua garis ini naik"
-      - text: "hampir bersamaan."
-        highlight: ["bersamaan"]
+      - text: "Mari kita lihat"
+      - text: "datanya selama setahun."
+        highlight: ["setahun"]
+      - text: "Dua garis ini naik turun"
+      - text: "hampir bareng."
+        highlight: ["bareng"]
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "navy_dark"
     template: "paired_trend"
     props:
+      headline: "DATA SETAHUN"
+      headline_accent: ["SETAHUN"]
       variables: ["Penjualan es krim", "Kasus tenggelam"]
       icons: [ice_cream, swimmer]
       series:
-        - [30, 38, 52, 70, 86, 95]
-        - [9, 12, 14, 21, 22, 28]
-      x_labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
-      conclusion: "Naik bareng!"
+        - [30, 34, 45, 57, 71, 84, 93, 88, 72, 52, 39, 31]
+        - [14, 12, 19, 20, 29, 30, 38, 30, 31, 17, 17, 11]
+      x_labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+      conclusion: "Naik turun bareng!"
       show_r: true
       data_label: "Ilustrasi"
     duration_hint_seconds: 7.0
     source_notes:
       - "Data ilustratif; r dihitung dari angka di spec, bukan statistik faktual."
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: axes, action: draw}
-      - {at: "word:Januari", target: chart-0, action: draw, duration: 1.6}
+      - {at: "word:datanya", target: chart-0, action: draw, duration: 1.6}
       - {at: "word:garis", target: chart-1, action: draw, duration: 1.6}
-      - {at: "word:bersamaan", target: conclusion, action: pop}
+      - {at: "word:bareng", target: conclusion, action: pop}
+      - {at: "word:bareng", target: chart-0, action: highlight}
+      - {at: "word:bareng", target: chart-1, action: highlight}
       - {at: 0.85, target: r, action: pop}
       - {at: 0.92, target: label, action: pop}
 
@@ -124,9 +131,11 @@ scenes:
       - text: "dua hal yang naik"
       - text: "atau turun bersamaan."
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "navy"
     template: "definition_card"
     props:
+      headline: "NAMANYA KORELASI"
+      headline_accent: ["KORELASI"]
       term: "KORELASI"
       definition: "Dua hal yang naik atau turun bersamaan."
       data_label: "ISTILAH"
@@ -134,6 +143,7 @@ scenes:
       icon_label: "Di sini: es krim & tenggelam"
     duration_hint_seconds: 5.5
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.0, target: card, action: pop}
       - {at: "word:korelasi", target: term, action: pop}
       - {at: "word:korelasi", target: label, action: pop}
@@ -153,9 +163,11 @@ scenes:
         highlight: ["menyebabkan"]
       - text: "yang lain."
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "purple"
     template: "question_link"
     props:
+      headline: "KUAT BELUM TENTU SEBAB"
+      headline_accent: ["SEBAB"]
       labels:
         - {label: "Hubungan kuat", icon: together}
         - {icon: question}
@@ -163,10 +175,11 @@ scenes:
       supporting_text: "Kuat ≠ menyebabkan"
     duration_hint_seconds: 6.5
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: item-0, action: pop}
-      - {at: "word:belum", target: link-0, action: slide}
+      - {at: "word:belum", target: link-0, action: draw}
       - {at: "word:belum", target: item-1, action: pop}
-      - {at: "word:menyebabkan", target: link-1, action: slide}
+      - {at: "word:menyebabkan", target: link-1, action: draw}
       - {at: "word:menyebabkan", target: item-2, action: pop}
       - {at: 0.88, target: supporting, action: pop}
 
@@ -189,9 +202,11 @@ scenes:
       - text: "dan lebih banyak yang berenang."
         highlight: ["berenang"]
     character: {presenter: "off", mascot: "off"}
-    background: "navy"
+    background: "teal"
     template: "causal_diagram"
     props:
+      headline: "FAKTOR KETIGA"
+      headline_accent: ["KETIGA"]
       nodes:
         - {id: weather, label: "Cuaca panas", icon: sun}
         - {id: ice_cream, label: "Beli es krim", icon: ice_cream}
@@ -200,6 +215,7 @@ scenes:
       data_label: "Ilustrasi"
     duration_hint_seconds: 10.5
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.0, target: node-1, action: pop}
       - {at: 0.0, target: node-2, action: pop}
       - {at: 0.03, target: false-link, action: draw}
@@ -222,19 +238,26 @@ scenes:
       - text: "atau variabel perancu."
         highlight: ["perancu"]
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "navy"
     template: "definition_card"
     props:
+      headline: "NAMANYA CONFOUNDER"
+      headline_accent: ["CONFOUNDER"]
       term: "CONFOUNDER"
       definition: "Faktor tersembunyi yang memengaruhi dua hal sekaligus."
       data_label: "ISTILAH"
-      icon: sun
-      icon_label: "Di sini: cuaca panas"
+      diagram: {z: "cuaca panas", x: "es krim", y: "tenggelam", xy_label: "korelasi palsu"}
     duration_hint_seconds: 5.5
     beats:
-      - {at: 0.0, target: card, action: pop}
-      - {at: 0.05, target: definition, action: slide}
-      - {at: "word:tersembunyi", target: icon, action: pop}
+      - {at: 0.0, target: headline, action: slide}
+      - {at: 0.0, target: x, action: pop}
+      - {at: 0.05, target: y, action: pop}
+      - {at: 0.1, target: xy, action: draw}
+      - {at: "word:tersembunyi", target: z, action: pop}
+      - {at: "word:seperti", target: arrow-zx, action: draw}
+      - {at: "word:seperti", target: arrow-zy, action: draw}
+      - {at: "caption:1", target: card, action: pop}
+      - {at: "caption:1", target: definition, action: slide}
       - {at: "word:confounder", target: term, action: pop}
       - {at: "word:confounder", target: label, action: pop}
       - {at: "word:perancu", target: term, action: highlight}
@@ -253,9 +276,11 @@ scenes:
       - text: "cuaca panaslah penyebabnya."
         highlight: ["penyebabnya"]
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "navy_dark"
     template: "compare"
     props:
+      headline: "CARA MENGECEKNYA"
+      headline_accent: ["MENGECEKNYA"]
       items:
         - {icon: thermometer, term: "SAMA PANAS", definition: "Bandingkan hari dengan suhu yang sama"}
         - {icon: magnifier, term: "HUBUNGAN HILANG", definition: "Es krim tak lagi terkait tenggelam"}
@@ -264,6 +289,7 @@ scenes:
     source_notes:
       - "Ilustrasi logika stratifikasi, bukan hasil studi."
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: side-0, action: pop}
       - {at: "word:bandingkan", target: side-0, action: highlight}
       - {at: "word:Kalau", target: vs, action: pop}
@@ -282,7 +308,7 @@ scenes:
       - text: "gajinya lebih tinggi."
         highlight: ["lebih tinggi"]
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "purple"
     template: "title_question"
     props:
       chapter: "4 · Contoh nyata"
@@ -313,9 +339,11 @@ scenes:
       - text: "dikirim pelatihan,"
       - text: "dan gajinya memang lebih tinggi."
     character: {presenter: "off", mascot: "off"}
-    background: "navy"
+    background: "teal"
     template: "causal_diagram"
     props:
+      headline: "FAKTOR KETIGA DI KANTOR"
+      headline_accent: ["KANTOR"]
       nodes:
         - {id: seniority, label: "Jabatan senior", icon: briefcase}
         - {id: training, label: "Lebih sering pelatihan", icon: book}
@@ -324,6 +352,7 @@ scenes:
       data_label: "Ilustrasi"
     duration_hint_seconds: 10.5
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.0, target: node-1, action: pop}
       - {at: 0.0, target: node-2, action: pop}
       - {at: 0.03, target: false-link, action: draw}
@@ -349,9 +378,11 @@ scenes:
       - text: "yang membuat orang mampu"
       - text: "ikut pelatihan."
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "coral"
     template: "question_link"
     props:
+      headline: "KESALAHAN 1"
+      headline_accent: ["1"]
       labels:
         - {label: "Gaji tinggi", icon: coin}
         - {icon: question}
@@ -359,11 +390,12 @@ scenes:
       supporting_text: "Arahnya bisa terbalik"
     duration_hint_seconds: 7.5
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: item-0, action: pop}
       - {at: "word:gaji", target: item-0, action: highlight}
-      - {at: "word:membuat", target: link-0, action: slide}
+      - {at: "word:membuat", target: link-0, action: draw}
       - {at: "word:membuat", target: item-1, action: pop}
-      - {at: "word:pelatihan", target: link-1, action: slide}
+      - {at: "word:pelatihan", target: link-1, action: draw}
       - {at: "word:pelatihan", target: item-2, action: pop}
       - {at: 0.9, target: supporting, action: pop}
 
@@ -380,14 +412,17 @@ scenes:
       - text: "dua hal acak pun"
       - text: "bisa terlihat berhubungan."
     character: {presenter: "off", mascot: "off"}
-    background: "deep_blue"
+    background: "navy_dark"
     template: "scatter_regression"
     props:
+      headline: "KESALAHAN 2"
+      headline_accent: ["2"]
       conclusion: "Bisa cuma kebetulan"
     duration_hint_seconds: 8.0
     source_notes:
       - "Titik-titik ilustratif; tidak ada angka yang diklaim."
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: chart, action: draw, duration: 2.0}
       - {at: "word:berhubungan", target: trend, action: draw}
       - {at: "word:berhubungan", target: conclusion, action: pop}
@@ -407,15 +442,18 @@ scenes:
       - text: "tetap perlu dicek faktor ketiganya."
         highlight: ["faktor ketiganya"]
     character: {presenter: "off", mascot: "off"}
-    background: "paper"
+    background: "navy"
     template: "compare"
     props:
+      headline: "KESALAHAN 3"
+      headline_accent: ["3"]
       items:
         - {icon: together, term: "KORELASI KUAT", definition: "Es krim & tenggelam naik bareng"}
         - {icon: magnifier, term: "BELUM BUKTI", definition: "Cek dulu: ada cuaca panas di baliknya"}
       divider: "TAPI"
     duration_hint_seconds: 8.0
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: side-0, action: pop}
       - {at: "word:korelasi", target: side-0, action: highlight}
       - {at: "word:Sekuat", target: vs, action: pop}
@@ -436,7 +474,7 @@ scenes:
       - text: "cari dulu faktor ketiganya."
         highlight: ["faktor ketiganya"]
     character: {presenter: "off", mascot: "on", mascot_pose: "explaining", expression: "thinking"}
-    background: "coral"
+    background: "purple"
     template: "title_question"
     props:
       chapter: "6 · Rangkuman"

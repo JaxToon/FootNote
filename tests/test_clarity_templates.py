@@ -134,3 +134,52 @@ def test_decor_marks_stay_in_the_side_gutters() -> None:
     ]
     xs += [float(x) for x in re.findall(r"M(\d+) \d+H", decor_layer(1080, 1920))]
     assert xs and all(x < 80 or x > 1000 for x in xs)
+
+
+LONG = Path("specs/fondasi-01-korelasi-bukan-kausalitas/long.yaml")
+
+
+def _long_els(scene_id: str):
+    scene = next(s for s in load_episode_spec(LONG).scenes if s.id == scene_id)
+    return template_art(scene, compute_layout(1920, 1080, False, scene.background))
+
+
+def _group(html: str, element_id: str) -> str:
+    import re
+
+    return re.search(rf'data-id="{element_id}".*?(?=<g data-id=|$)', html, re.S).group(0)
+
+
+@pytest.mark.parametrize("scene_id", ["hidden-factor", "work-confounder"])
+def test_landscape_causal_arrows_run_down_to_their_effects(scene_id: str) -> None:
+    import re
+
+    html = _long_els(scene_id).html()
+    for k in (1, 2):
+        x0, y0, x1, y1 = map(
+            float,
+            re.search(
+                r'd="M([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+)"', _group(html, f"arrow-{k}")
+            ).groups(),
+        )
+        assert y1 - y0 > 60, f"arrow-{k} must point down at its effect, not sideways or up"
+
+
+def test_landscape_definition_card_puts_the_visual_beside_the_card() -> None:
+    import re
+
+    html = _long_els("name-confounder").html()
+    card_x, card_w = map(
+        float,
+        re.search(r'<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)"', _group(html, "card")).groups(),
+    )
+    z_cx = float(re.search(r'<circle cx="([\d.]+)"', _group(html, "z")).group(1))
+    assert z_cx > card_x + card_w  # diagram in its own column, not squeezed under the card
+
+
+def test_paired_trend_resting_icons_do_not_overlap() -> None:
+    import re
+
+    for els in (_long_els("data"), _els("example", mascot=False)):
+        rests = [float(r) for r in re.findall(r'data-rest="(-?[\d.]+)"', els.html())]
+        assert len(rests) == 2 and rests[0] != rests[1]  # spread apart where the lines end close
