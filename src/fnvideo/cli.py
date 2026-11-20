@@ -16,6 +16,7 @@ from fnvideo.audio.voice_samples import inspect_voice_samples
 from fnvideo.config import load_settings
 from fnvideo.models.episode import EpisodeSpec
 from fnvideo.render.engine import render_episode
+from fnvideo.services.clarity import ClarityGateError, check_clarity, editorial_gate
 from fnvideo.services.doctor import run_doctor
 from fnvideo.services.spec_loader import load_episode_spec
 
@@ -27,6 +28,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"fnvideo {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor", help="Check local render dependencies and voice configuration")
+    clarity = sub.add_parser(
+        "check-clarity", help="Lint a spec against the clarity (storytelling) rules"
+    )
+    clarity.add_argument("spec", type=Path)
     validate = sub.add_parser("validate", help="Validate an episode YAML spec")
     validate.add_argument("spec", type=Path)
     plan = sub.add_parser("plan", help="Print normalized episode production plan")
@@ -213,6 +218,13 @@ def _motion_holds(spec: EpisodeSpec, out: Path) -> list[tuple[float, float]]:
     return windows
 
 
+def _clarity_gate_or_exit(spec: EpisodeSpec) -> None:
+    try:
+        editorial_gate(spec)
+    except ClarityGateError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def main() -> None:
     args = _parser().parse_args()
     settings = load_settings()
@@ -282,7 +294,9 @@ def main() -> None:
             print(f"Voice preview written: {path}")
             return
 
-    if args.command in {"validate", "plan", "tts", "preview", "render", "build", "motion"}:
+    if args.command in {
+        "validate", "plan", "tts", "preview", "render", "build", "motion", "check-clarity"
+    }:  # fmt: skip
         spec = _spec_or_exit(args.spec)
         if args.command == "validate":
             print(f"VALID: {spec.meta.id} — {spec.meta.title}")
@@ -294,7 +308,19 @@ def main() -> None:
 
             for warning in caption_warnings(spec) + character_warnings(spec):
                 print(f"WARN: {warning}")
+            issues = check_clarity(spec)
+            level = "ERROR" if spec.editorial_status == "approved" else "WARN"
+            for issue in issues:
+                print(f"{level}: {issue}")
+            if issues and level == "ERROR":
+                raise SystemExit(2)  # approved specs must be clarity-clean
             return
+        if args.command == "check-clarity":
+            issues = check_clarity(spec)
+            for issue in issues:
+                print(issue)
+            print(("FAIL" if issues else "PASS") + f": {len(issues)} clarity issue(s)")
+            raise SystemExit(1 if issues else 0)
         if args.command == "plan":
             print(
                 json.dumps(
@@ -337,6 +363,7 @@ def main() -> None:
                 raise SystemExit(
                     "Editorial status is not approved. Review the script and set editorial_status: approved, or use --allow-draft for testing."
                 )
+            _clarity_gate_or_exit(spec)
             if args.silent:
                 print("NOTE: silent draft render — placeholder audio, estimated timing if no TTS.")
             _ensure_timing(spec, out, settings.audio_gap_seconds, allow_estimate=args.silent)

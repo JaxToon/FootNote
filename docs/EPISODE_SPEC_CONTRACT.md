@@ -39,6 +39,12 @@ Template props added for icons: `causal_diagram.nodes[].icon`, `question_link.la
 as `{label, icon}`, `paired_trend.icons` and optional `paired_trend.x_labels`. Icon names
 are the files in `src/fnvideo/render/assets/icons/`.
 
+Clarity lint (`fnvideo check-clarity <spec>`, also run by `validate`): (a) captions are
+verbatim narration (case/punctuation ignored), (b) the first scene shows something concrete
+(`side_icons`, icons or a chart), (c) NODI-only scenes (title_question without `side_icons`)
+last ≤ 2 s except the close, (d) explanation scenes have a `word:` beat. Warnings for drafts;
+errors that block `validate`, `tts` and `render` once `editorial_status: approved`.
+
 Authoring lint (`fnvideo validate`): portrait captions ≤ 5 words and one line; NODI off in
 explanation templates; avoid navy backgrounds behind NODI.
 

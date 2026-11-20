@@ -217,10 +217,10 @@ scenes:
     duration_hint_seconds: 5.0
     beats:
       - {at: 0.0, target: side-0, action: pop}
-      - {at: "caption:1", target: side-0, action: highlight}
-      - {at: "caption:2", target: vs, action: pop}
-      - {at: "caption:2", target: side-1, action: slide}
-      - {at: "caption:3", target: side-1, action: highlight}
+      - {at: "word:berkorelasi", target: side-0, action: highlight}
+      - {at: "word:Penyebab", target: vs, action: pop}
+      - {at: "word:Penyebab", target: side-1, action: slide}
+      - {at: "word:panas", target: side-1, action: highlight}
 
   - id: close
     title: "Penutup"

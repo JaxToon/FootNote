@@ -17,6 +17,7 @@ from fnvideo.audio.timing import (
 )
 from fnvideo.config import Settings
 from fnvideo.models.episode import EpisodeSpec
+from fnvideo.services.clarity import editorial_gate
 
 
 def _run(cmd: list[str]) -> None:
@@ -60,6 +61,8 @@ def generate_tts(
             "Human editorial approval is required before TTS. Set editorial_status: approved "
             "after fact-checking, or pass --allow-draft for a clearly marked test render."
         )
+    # Approved specs must pass the clarity rules before any (paid) narration is generated.
+    editorial_gate(spec)
     if not settings.elevenlabs_api_key or not settings.elevenlabs_voice_id:
         raise RuntimeError(
             "Voice clone is not configured. Set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in .env. "
