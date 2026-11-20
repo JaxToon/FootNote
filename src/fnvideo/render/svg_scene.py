@@ -398,6 +398,24 @@ TEMPLATE_HEADLINE_OK = {
 }  # fmt: skip
 
 
+def arrow_svg(x0: float, y0: float, x1: float, y1: float, color: str, *, width: float = 12,
+              head: float = 34) -> str:  # fmt: skip
+    """Straight arrow whose chevron head follows the line's angle.
+
+    The head is excluded from the draw-on (data-nodraw) and fades in as the line arrives
+    (data-reveal), so it never appears ahead of the line.
+    """
+    ang = math.atan2(y1 - y0, x1 - x0)
+    hx = [x1 - head * math.cos(ang + d) for d in (-0.5, 0.5)]
+    hy = [y1 - head * math.sin(ang + d) for d in (-0.5, 0.5)]
+    common = f'stroke="{color}" stroke-width="{width}" stroke-linecap="round" fill="none"'
+    return (
+        f'<path d="M{x0:.1f} {y0:.1f} L{x1:.1f} {y1:.1f}" {common}/>'
+        f'<path data-nodraw="1" data-reveal="0.9" d="M{hx[0]:.1f} {hy[0]:.1f} L{x1:.1f} {y1:.1f} '
+        f'L{hx[1]:.1f} {hy[1]:.1f}" {common} stroke-linejoin="round"/>'
+    )
+
+
 def accent_words_svg(svg: str, words: list[str], color: str) -> str:
     """Colour whole words of an svg_text block (text nodes only, never attributes)."""
     if not words:
@@ -703,8 +721,8 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             # example (clarity rule 6). Elements: z, x, y, arrow-zx, arrow-zy, xy.
             y0 = y + card_h + 90 + T["label"] * 2.4
             span = bottom - y0
-            r = min(96.0, span * 0.16)
-            zy, xy_y = y0 + r + 10, y0 + span * 0.62
+            r = min(110.0, span * 0.17)
+            zy, xy_y = y0 + r + 10, y0 + span * 0.66
             dx = min(usable * 0.34, 320.0)
 
             def node(
@@ -725,31 +743,22 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                                anchor=anchor, max_chars=L.chars(T["node"], dx * 1.2))
                 )  # fmt: skip
 
-            def arrow(x0_: float, y0_: float, x1_: float, y1_: float) -> str:
-                ang = math.atan2(y1_ - y0_, x1_ - x0_)
-                hx = [x1_ - 34 * math.cos(ang + s_) for s_ in (-0.5, 0.5)]
-                hy = [y1_ - 34 * math.sin(ang + s_) for s_ in (-0.5, 0.5)]
-                return (
-                    f'<path d="M{x0_:.1f} {y0_:.1f} L{x1_:.1f} {y1_:.1f}" stroke="{th.line}" stroke-width="11" '
-                    'stroke-linecap="round" fill="none"/>'
-                    f'<path d="M{hx[0]:.1f} {hy[0]:.1f} L{x1_:.1f} {y1_:.1f} L{hx[1]:.1f} {hy[1]:.1f}" '
-                    f'stroke="{th.line}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
-                )
-
-            els.add("z", node(cx, zy, "Z", str(dg.get("z", "faktor ketiga")), YELLOW, side=True))
+            z_body = node(cx, zy, "Z", str(dg.get("z", "faktor ketiga")), YELLOW, side=True)
+            els.add("z", f'<g data-idle="pulse">{z_body}</g>')  # the hidden cause breathes
             els.add("x", node(cx - dx, xy_y, "X", str(dg.get("x", "A")), PAPER))
             els.add("y", node(cx + dx, xy_y, "Y", str(dg.get("y", "B")), BLUE))
             for name, sgn in (("arrow-zx", -1), ("arrow-zy", 1)):
                 ang = math.atan2(xy_y - zy, sgn * dx)
                 els.add(
                     name,
-                    arrow(cx + (r + 14) * math.cos(ang), zy + (r + 14) * math.sin(ang),
-                          cx + sgn * dx - (r + 18) * math.cos(ang), xy_y - (r + 18) * math.sin(ang)),
+                    arrow_svg(cx + (r + 14) * math.cos(ang), zy + (r + 14) * math.sin(ang),
+                              cx + sgn * dx - (r + 22) * math.cos(ang),
+                              xy_y - (r + 22) * math.sin(ang), th.line, width=11),
                     "draw",
                 )  # fmt: skip
             els.add(
                 "xy",
-                f'<path d="M{cx - dx + r + 24:.1f} {xy_y:.1f} H{cx + dx - r - 24:.1f}" stroke="{th.ink}" '
+                f'<path data-dash="18 16" d="M{cx - dx + r + 24:.1f} {xy_y:.1f} H{cx + dx - r - 24:.1f}" stroke="{th.ink}" '
                 'stroke-width="9" stroke-dasharray="18 16" stroke-linecap="round" stroke-opacity=".6"/>'
                 + svg_text(cx, xy_y - 28, str(dg.get("xy_label", "korelasi palsu")), size=T["label"],
                            fill=th.ink, weight=700, max_chars=L.chars(T["label"], dx * 1.3)),
@@ -770,7 +779,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         legend_top = top + 10
         py0 = legend_top + 2 * legend_row + 90  # plot top (room for riding icons)
         py1 = bottom - label_space - tick * 2.2  # x axis
-        head = T["node"] * 3.6  # riding icon size
+        head = T["node"] * 2.9  # riding icon size (two end icons must not overlap)
         els.add(
             "axes",
             f'<path d="M{x0} {py0 - 40} V{py1} H{x1}" fill="none" stroke="{th.ink}" '
@@ -955,12 +964,15 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         node_w = usable * (0.47 if portrait else 0.34)
         zone_bottom = bottom - label_space
         if with_icons:
-            top_icon = (zone_bottom - top) * (0.30 if portrait else 0.36)
-            low_icon = top_icon * (0.95 if portrait else 0.86)
+            zone = zone_bottom - top
+            # portrait: cause on top, effects low enough that the arrows have real length
+            top_icon = zone * (0.25 if portrait else 0.36)
+            low_icon = zone * (0.27 if portrait else 0.31)
+            low_y = top + zone * (0.64 if portrait else 0.62)
             centers = [
                 (cx, top + top_icon / 2 + 10, top_icon),
-                (L.left + node_w / 2, top + (zone_bottom - top) * 0.62, low_icon),
-                (L.right - node_w / 2, top + (zone_bottom - top) * 0.62, low_icon),
+                (L.left + node_w / 2, low_y, low_icon),
+                (L.right - node_w / 2, low_y, low_icon),
             ]
         else:
             box_h = T["node"] * 4.6
@@ -976,8 +988,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             accent = YELLOW if idx == 0 else "#FFFFFF"
             if with_icons:
                 ico = icon(str(node["icon"]), ncx, ncy, size) if node.get("icon") else ""
+                card_w = node_w * 0.8 if idx == 0 else node_w
                 card_svg, card_bottom = label_card(
-                    ncx, ncy + size / 2 + 18, label, node_w, T["node"], accent, th=th
+                    ncx, ncy + size / 2 + 18, label, card_w, T["node"], accent, th=th
                 )
                 bodies.append((ico + card_svg, ncy - size / 2, card_bottom))
             else:
@@ -985,20 +998,16 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     ncx, ncy - size / 2, label, node_w, T["node"], accent, min_h=size, th=th
                 )
                 bodies.append((card_svg, ncy - size / 2, card_bottom))
-        sy = bodies[0][2] + 14
+        sy = bodies[0][2] + 18
         # Arrows are drawn first (behind the nodes) but animate after their source node.
-        # Each arrow leaves from its own side of the cause so two arrows read as two causes.
+        # Each starts just off the cause card's centre and ends above its effect's icon, with
+        # an arrowhead aligned to the line that appears when the line arrives (data-reveal).
         for k in range(1, len(bodies)):
-            ex, ey = centers[k][0], bodies[k][1] - 14
-            sx = cx + (-1 if centers[k][0] < cx else 1) * node_w * 0.22
+            sgn = -1 if centers[k][0] < cx else 1
+            sx = cx + sgn * 34
+            ex, ey = centers[k][0] - sgn * centers[k][2] * 0.08, bodies[k][1] - 26
             els.add(
-                f"arrow-{k}",
-                f'<path d="M{sx} {sy} L{ex} {ey}" '
-                f'fill="none" stroke="{th.line}" stroke-width="10" stroke-linecap="round"/>'
-                f'<path d="M{ex - 18} {ey - 22} L{ex} {ey} L{ex + 18} {ey - 22}" fill="none" '
-                f'stroke="{th.line}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
-                "draw",
-                seq=2 * k - 1,
+                f"arrow-{k}", arrow_svg(sx, sy, ex, ey, th.line, width=12), "draw", seq=2 * k - 1
             )
         if prop.get("false_link") and len(bodies) == 3:
             # The link the viewer assumed (A -> B) is shown first, then crossed out on a beat
@@ -1008,7 +1017,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             lx1 = centers[2][0] - centers[2][2] * 0.55
             els.add(
                 "false-link",
-                f'<path d="M{lx0:.1f} {ly:.1f} H{lx1:.1f}" stroke="{th.line}" stroke-width="10" '
+                f'<path data-dash="20 16" d="M{lx0:.1f} {ly:.1f} H{lx1:.1f}" stroke="{th.line}" stroke-width="10" '
                 'stroke-dasharray="20 16" stroke-linecap="round" stroke-opacity=".8"/>',
                 "draw",
                 seq=-0.5,
@@ -1374,8 +1383,10 @@ def decor_layer(width: int, height: int, th: Theme = THEME_DARK) -> str:
     for i in range(6):  # small crisp editorial marks (plus signs / rings)
         ax, ay = rng.uniform(20, 45), rng.uniform(20, 45)
         w, ph = rng.uniform(0.4, 0.8), rng.uniform(0, 2 * math.pi)
-        x = width * (0.08 + 0.84 * ((i * 0.37) % 1))
-        y = height * (0.06 + 0.70 * ((i * 0.61) % 1))
+        # side gutters only, so marks never sit on content (x within ~45px of the edge)
+        x = width * (0.035 if i % 2 == 0 else 0.965)
+        y = height * (0.10 + 0.62 * ((i * 0.61) % 1))
+        ax, ay = ax * 0.25, ay * 0.6
         mark = (
             f'<path d="M{x - 14:.0f} {y:.0f}H{x + 14:.0f}M{x:.0f} {y - 14:.0f}V{y + 14:.0f}" '
             if i % 2 == 0
@@ -1667,7 +1678,16 @@ def build_scene_html(
         const drawP = en.action === 'draw' ? easeOut(p) : (t < en.t ? 0 : 1);
         node.querySelectorAll('path:not([data-nodraw]):not([data-icon] path)').forEach((path) => {{
           const len = strokeLen(path);
-          if (len > 0) {{ path.style.strokeDasharray = `${{len}}`; path.style.strokeDashoffset = String(len * (1 - drawP)); }}
+          if (len <= 0) return;
+          if (path.dataset.dash) {{
+            // keep the dash pattern while drawing: dashes up to the drawn length, then a gap
+            const pat = path.dataset.dash.split(/[ ,]+/).map(Number), shown = len * drawP, arr = [];
+            let acc = 0, k = 0;
+            while (acc < shown) {{ const seg = Math.min(pat[k % pat.length], shown - acc); arr.push(seg); acc += seg; k++; }}
+            if (k % 2 === 1) arr.push(len + 1); else arr.push(0, len + 1);
+            path.style.strokeDasharray = arr.join(' '); path.style.strokeDashoffset = '0';
+            path.style.visibility = shown > 0 ? 'visible' : 'hidden';
+          }} else {{ path.style.strokeDasharray = `${{len}}`; path.style.strokeDashoffset = String(len * (1 - drawP)); }}
         }});
         if (en.action === 'draw') {{
           node.querySelectorAll(':scope > rect, :scope > text').forEach((x) => x.setAttribute('opacity', clamp(p * 3)));

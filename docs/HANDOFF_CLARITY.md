@@ -50,6 +50,18 @@ The owner still found the paper render weaker than the prototype. A side-by-side
 - Spec: dark saturated backgrounds per scene, headlines, 12-month seasonal data ("naik turun bareng" is more convincing than two lines that only rise).
 - Verified with a full `--silent --allow-draft` render on top of `cb2de06`: motion QA passes (mean 1.77, min 0.37), `check-clarity` passes, and all 124 tests pass. `definition_card` now supports both `icon` (from `cb2de06`) and `diagram`; the pilot uses `diagram`.
 
+## 2c. Small-detail pass (third commit)
+
+The owner flagged the arrows at 0:19–0:22. A frame-by-frame audit (one frame per second, plus 0.6 s steps through the diagram) found these problems:
+- The arrowheads were fixed downward chevrons on almost horizontal lines, so they looked broken. Fix: new `arrow_svg()`, a straight line whose chevron follows the line's angle. The head is excluded from the draw-on and fades in as the line arrives (`data-reveal`). `causal_diagram` and `definition_card.diagram` both use it.
+- The arrows ran from the cause card's corners to the icons' bounding boxes. Fix: they now leave the card's bottom centre and end just above each effect icon. Effects sit lower (portrait) so the arrows have real length, and the cause card is narrower.
+- Dashed links lost their dashes. The draw-on overwrote `stroke-dasharray` with the path length. Fix: paths with `data-dash="a b"` now draw on while keeping their pattern.
+- "Bukan" is the first word, so `word:Bukan` resolved to t=0 and the ✕ popped before the link it crosses existed. Fix: the link draws in 0.45 s and the ✕ follows at 7% of the scene. **Rule:** never cue a dependent element on a word that comes before (or at the same time as) the element it depends on.
+- Decor "+" and "○" marks drifted over content. Fix: they now live only in the side gutters (≤ ~60 px from the edge).
+- The two riding icons at the end of the chart overlapped. Fix: they are smaller (2.9 × node size).
+- name-it was restaged: X, Y and "korelasi palsu" appear first, Z on "tersembunyi", its arrows on "seperti", and the card with the term on "disebut confounder". Z idles with a pulse, and the diagram is larger.
+- Tests: 127 pass. Motion QA passes (min 0.33). `check-clarity` passes.
+
 ## 3. Your tasks (in order)
 
 1. **Pull and verify:** `pytest`, `ruff check .`, `ruff format --check .`, `fnvideo validate …/short.yaml`, `fnvideo preview …/short.yaml`. Open `contact.png` with the Read tool.

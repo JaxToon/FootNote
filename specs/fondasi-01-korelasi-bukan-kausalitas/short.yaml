@@ -161,8 +161,10 @@ scenes:
     beats:
       - {at: 0.0, target: node-1, action: pop}
       - {at: 0.0, target: node-2, action: pop}
-      - {at: 0.02, target: false-link, action: draw}
-      - {at: "word:Bukan", target: false-x, action: pop}
+      # "Bukan" is the first word, so the assumed link is drawn right away and crossed
+      # out just after it (a word cue would fire before the link exists).
+      - {at: 0.0, target: false-link, action: draw, duration: 0.45}
+      - {at: 0.07, target: false-x, action: pop}
       - {at: "word:faktor", target: headline, action: slide}
       - {at: "caption:2", target: node-0, action: pop}
       - {at: "word:beli", target: arrow-1, action: draw}
@@ -191,17 +193,18 @@ scenes:
       diagram: {z: "cuaca panas", x: "es krim", y: "tenggelam", xy_label: "korelasi palsu"}
     duration_hint_seconds: 3.6
     beats:
-      - {at: 0.0, target: card, action: pop}
-      - {at: 0.05, target: definition, action: slide}
+      # X and Y with the "fake" link first; Z appears on "tersembunyi", its arrows on
+      # "seperti"; the card with the term lands on "disebut confounder".
+      - {at: 0.0, target: x, action: pop}
+      - {at: 0.06, target: y, action: pop}
+      - {at: 0.12, target: xy, action: draw}
+      - {at: "word:tersembunyi", target: z, action: pop}
+      - {at: "word:seperti", target: arrow-zx, action: draw}
+      - {at: "word:seperti", target: arrow-zy, action: draw}
+      - {at: "caption:1", target: card, action: pop}
+      - {at: "caption:1", target: definition, action: slide}
       - {at: "word:confounder", target: term, action: pop}
-      - {at: "word:confounder", target: term, action: highlight}
       - {at: "word:confounder", target: label, action: pop}
-      - {at: "word:confounder", target: z, action: pop}
-      - {at: 0.75, target: arrow-zx, action: draw}
-      - {at: 0.75, target: arrow-zy, action: draw}
-      - {at: 0.12, target: x, action: pop}
-      - {at: 0.2, target: y, action: pop}
-      - {at: 0.3, target: xy, action: draw}
 
   - id: difference
     title: "Bedanya, pakai contoh"

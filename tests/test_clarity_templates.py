@@ -101,3 +101,36 @@ def test_captions_render_in_dark_box() -> None:
     timing = build_estimated_timing(spec, 0.35)
     html = build_scene_html(spec, spec.scenes[0], timing["scenes"][0], timing)
     assert 'data-cap-bg="1"' in html
+
+
+def test_arrow_head_follows_line_and_waits_for_it() -> None:
+    import math
+    import re
+
+    from fnvideo.render.svg_scene import arrow_svg
+
+    svg = arrow_svg(0, 0, 100, 100, "#fff")
+    assert 'data-nodraw="1" data-reveal="0.9"' in svg
+    # both head points sit behind the tip along the 45° line (head is aligned, not vertical)
+    head_d = re.search(r'data-reveal="0.9" d="([^"]+)"', svg).group(1)
+    pts = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", head_d)]
+    (hx0, hy0), (hx1, hy1) = (pts[0], pts[1]), (pts[4], pts[5])
+    mid = ((hx0 + hx1) / 2, (hy0 + hy1) / 2)
+    assert math.isclose(mid[0], mid[1], abs_tol=0.5) and mid[0] < 100
+
+
+def test_dashed_links_keep_their_pattern_when_drawn() -> None:
+    assert 'data-dash="20 16"' in _els("hidden-factor", mascot=False).html()
+    assert 'data-dash="18 16"' in _els("name-it", mascot=False).html()
+
+
+def test_decor_marks_stay_in_the_side_gutters() -> None:
+    import re
+
+    from fnvideo.render.svg_scene import decor_layer
+
+    xs = [
+        float(x) for x in re.findall(r'<circle cx="(\d+)" cy="\d+" r="13"', decor_layer(1080, 1920))
+    ]
+    xs += [float(x) for x in re.findall(r"M(\d+) \d+H", decor_layer(1080, 1920))]
+    assert xs and all(x < 80 or x > 1000 for x in xs)
