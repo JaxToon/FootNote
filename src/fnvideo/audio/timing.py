@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import wave
 from pathlib import Path
@@ -108,6 +109,59 @@ def caption_timings(
     return result
 
 
+_WORD = re.compile(r"\w[\w'-]*", re.UNICODE)
+
+
+def _word_start(
+    word: str, narration: str, speech_duration: float, alignment: dict[str, Any] | None
+) -> tuple[float, str]:
+    """Start time of the first whole-word occurrence of *word*, plus its timing quality."""
+    target = word.casefold()
+    exact = _aligned_windows(alignment, []) is not None if alignment else False
+    if alignment and exact:
+        joined = "".join(alignment["characters"])
+        starts = alignment["character_start_times_seconds"]
+        for m in _WORD.finditer(joined):
+            if m.group(0).casefold() == target and starts[m.start()] is not None:
+                return float(starts[m.start()]), "provider_alignment"
+    for m in _WORD.finditer(narration):
+        if m.group(0).casefold() == target:
+            return speech_duration * m.start() / max(1, len(narration)), "estimated"
+    raise ValueError(f"beat word '{word}' does not occur in the scene narration")
+
+
+def resolve_beats(
+    scene: Any,
+    speech_duration: float,
+    scene_duration: float,
+    captions: list[dict[str, Any]],
+    alignment: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Resolve each beat's `at` to scene-relative seconds, sorted by time."""
+    resolved: list[dict[str, Any]] = []
+    for beat in getattr(scene, "beats", []):
+        quality = "exact"
+        if isinstance(beat.at, float):
+            t = beat.at * scene_duration
+        elif beat.at.startswith("caption:"):
+            cap = captions[int(beat.at.split(":", 1)[1])]
+            t, quality = float(cap["start"]), cap.get("timing_quality", "estimated")
+        else:
+            t, quality = _word_start(
+                beat.at.split(":", 1)[1], scene.narration, speech_duration, alignment
+            )
+        resolved.append(
+            {
+                "t": round(min(max(0.0, t), scene_duration), 4),
+                "target": beat.target,
+                "action": beat.action,
+                "duration": beat.duration,
+                "timing_quality": quality,
+            }
+        )
+    return sorted(resolved, key=lambda b: b["t"])
+
+
 def estimate_scene_seconds(scene: Any) -> float:
     """Speech-duration estimate for previews (~13 characters/second Indonesian narration)."""
     return float(scene.duration_hint_seconds or max(4.0, len(scene.narration) / 13.0))
@@ -122,6 +176,7 @@ def build_estimated_timing(
     for index, scene in enumerate(spec.scenes):
         speech = estimate_scene_seconds(scene)
         pad = gap_seconds if index < len(spec.scenes) - 1 else tail_seconds
+        captions = caption_timings(scene, speech, None)
         scenes.append(
             {
                 "id": scene.id,
@@ -130,7 +185,8 @@ def build_estimated_timing(
                 "duration_seconds": speech + pad,
                 "start_seconds": cursor,
                 "end_seconds": cursor + speech + pad,
-                "captions": caption_timings(scene, speech, None),
+                "captions": captions,
+                "beats": resolve_beats(scene, speech, speech + pad, captions, None),
             }
         )
         cursor += speech + pad

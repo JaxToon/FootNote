@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -54,6 +55,46 @@ class CharacterConfig(StrictModel):
     expression: str | None = None
 
 
+ENTER_ACTIONS = ("pop", "slide", "draw", "count")
+ELEMENT_ACTIONS = (*ENTER_ACTIONS, "highlight", "exit")
+_AT_PATTERN = re.compile(r"^(caption:\d+|word:\S+)$")
+_NODI_ACTION = re.compile(r"^(pose|expr):[a-z_]+$")
+
+
+class Beat(StrictModel):
+    """A cue: at a moment in the narration, do something to one on-screen element.
+
+    at: "caption:<idx>" | "word:<word>" | fraction 0..1 of the scene duration.
+    target: an element data-id from the scene template, or "nodi".
+    action: pop | slide | draw | count | highlight | exit, or for NODI pose:<p> / expr:<e>.
+    """
+
+    at: str | float
+    target: str = Field(min_length=1)
+    action: str = Field(min_length=1)
+    duration: float | None = Field(default=None, gt=0, le=5)
+
+    @field_validator("at")
+    @classmethod
+    def _check_at(cls, value: str | float) -> str | float:
+        if isinstance(value, int | float):
+            if not 0.0 <= float(value) <= 1.0:
+                raise ValueError("numeric beat 'at' must be a fraction between 0 and 1")
+            return float(value)
+        if not _AT_PATTERN.match(value):
+            raise ValueError("beat 'at' must be 'caption:<idx>', 'word:<word>' or 0..1")
+        return value
+
+    @model_validator(mode="after")
+    def _check_action(self) -> Beat:
+        if self.target == "nodi":
+            if not _NODI_ACTION.match(self.action):
+                raise ValueError("NODI beats use action 'pose:<pose>' or 'expr:<expression>'")
+        elif self.action not in ELEMENT_ACTIONS:
+            raise ValueError(f"beat action must be one of {', '.join(ELEMENT_ACTIONS)}")
+        return self
+
+
 class SceneSpec(StrictModel):
     id: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9-]*$")
     title: str = Field(min_length=1)
@@ -66,10 +107,22 @@ class SceneSpec(StrictModel):
     props: dict[str, Any] = Field(default_factory=dict)
     duration_hint_seconds: float | None = Field(default=None, gt=0)
     source_notes: list[str] = Field(default_factory=list)
+    beats: list[Beat] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _caption_beats_exist(self) -> SceneSpec:
+        for beat in self.beats:
+            if isinstance(beat.at, str) and beat.at.startswith("caption:"):
+                if int(beat.at.split(":", 1)[1]) >= len(self.captions):
+                    raise ValueError(f"scene {self.id}: beat refers to missing {beat.at}")
+        return self
+
+
+CURRENT_SCHEMA_VERSION = 2
 
 
 class EpisodeSpec(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = CURRENT_SCHEMA_VERSION
     meta: EpisodeMeta
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     editorial_status: Literal["draft", "needs_review", "approved"] = "draft"

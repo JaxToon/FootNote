@@ -12,6 +12,7 @@ from fnvideo.audio.timing import (
     caption_timings,
     map_mouth_shapes,
     probe_duration,
+    resolve_beats,
     write_srt,
 )
 from fnvideo.config import Settings
@@ -145,16 +146,17 @@ def generate_tts(
             print(f"[TTS] {scene.id}: {duration:.2f}s")
 
         speech_files.append(mp3_path)
+        pad = settings.audio_gap_seconds if index < len(spec.scenes) - 1 else 0.25
         scene_records.append(
             {
                 "id": scene.id,
                 "title": scene.title,
                 "audio_file": str(mp3_path.relative_to(output_dir)),
                 "speech_duration_seconds": duration,
-                "duration_seconds": duration
-                + (settings.audio_gap_seconds if index < len(spec.scenes) - 1 else 0.25),
+                "duration_seconds": duration + pad,
                 "alignment": alignment,
-                "captions": caption_timings(scene, duration, alignment),
+                "captions": (captions := caption_timings(scene, duration, alignment)),
+                "beats": resolve_beats(scene, duration, duration + pad, captions, alignment),
                 "request_id": request_id,
             }
         )

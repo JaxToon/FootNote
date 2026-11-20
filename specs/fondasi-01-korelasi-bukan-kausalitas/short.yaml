@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 meta:
   id: fondasi-01-korelasi-bukan-kausalitas-short
   title: "Korelasi Bukan Kausalitas"
@@ -38,6 +38,9 @@ scenes:
       supporting_text: "Bersamaan bukan berarti menyebabkan"
     duration_hint_seconds: 5.0
     source_notes: []
+    beats:
+      - {at: "caption:1", target: headline, action: highlight}
+      - {at: "caption:1", target: nodi, action: "expr:skeptical"}
   - id: intuition
     title: "Intuisi"
     purpose: "Memperkenalkan contoh dua variabel yang bergerak bersama."
@@ -56,6 +59,10 @@ scenes:
     duration_hint_seconds: 7.0
     source_notes:
       - "Contoh ilustratif; jangan tampilkan sebagai statistik faktual."
+    beats:
+      - {at: "caption:0", target: chart-0, action: draw, duration: 1.2}
+      - {at: "caption:1", target: chart-1, action: draw, duration: 1.2}
+      - {at: 0.8, target: label, action: pop}
   - id: hidden-factor
     title: "Faktor ketiga"
     purpose: "Menjelaskan variabel perancu sebagai kemungkinan penjelasan alternatif."
@@ -80,6 +87,13 @@ scenes:
       data_label: "Ilustrasi"
     duration_hint_seconds: 9.0
     source_notes: []
+    beats:
+      - {at: "word:cuaca", target: node-0, action: pop}
+      - {at: "word:mendorong", target: arrow-1, action: draw}
+      - {at: "word:es", target: node-1, action: pop}
+      - {at: "word:sekaligus", target: arrow-2, action: draw}
+      - {at: "word:matahari", target: node-2, action: pop}
+      - {at: "caption:1", target: node-0, action: highlight}
   - id: takeaway
     title: "Takeaway"
     purpose: "Memberi aturan praktis untuk menafsirkan korelasi."
@@ -102,3 +116,7 @@ scenes:
         - "Cari faktor alternatif dan bukti kausal"
     duration_hint_seconds: 10.0
     source_notes: []
+    beats:
+      - {at: "caption:0", target: point-0, action: slide}
+      - {at: "caption:1", target: point-1, action: slide}
+      - {at: "caption:1", target: nodi, action: "pose:point"}
