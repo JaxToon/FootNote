@@ -303,3 +303,25 @@ def test_every_text_on_portrait_is_at_least_40px(template: str, background: str)
     sizes = [float(v) for v in re.findall(r'font-size="([0-9.]+)"', html)]
     assert sizes, "no text found"
     assert min(sizes) >= MIN_PORTRAIT_TEXT, f"{template}: smallest text {min(sizes)}px"
+
+
+def test_compare_portrait_text_stays_above_caption_zone() -> None:
+    import re
+
+    spec = _spec("short", 1080, 1920)
+    base = spec.scenes[0]
+    long_def = "Cuaca panas → lebih banyak yang berenang dan juga lebih banyak yang membeli"
+    scene = base.model_copy(
+        update={
+            "template": "compare",
+            "character": base.character.model_copy(update={"mascot": "off"}),
+            "props": {"items": [{"term": "KORELASI", "definition": "x", "icon": "together"},
+                                {"term": "KAUSALITAS", "definition": long_def, "icon": "sun"}]},
+        }
+    )  # fmt: skip
+    html = build_scene_html(spec, scene, {"captions": []}, {})
+    lay = compute_layout(1080, 1920, False, "paper")
+    side1 = html.split('data-id="side-1"')[1].split('data-id="vs"')[0]
+    ys = [float(y) for y in re.findall(r'<text x="[0-9.]+" y="([0-9.]+)"', side1)]
+    gaps = [float(g) for g in re.findall(r'dy="([0-9.]+)"', side1)]
+    assert max(ys) + sum(gaps) <= lay.bottom + 1  # last definition line above the content floor

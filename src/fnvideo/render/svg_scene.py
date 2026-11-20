@@ -772,7 +772,12 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             slot = (bottom - top - vs_h) / n
             for i, item in enumerate(items):
                 y = top + i * (slot + vs_h)
-                size = min(slot * 0.56, 360)
+                # the icon gives way to the text so the definition never reaches the caption
+                d_lines = len(
+                    split_lines(str(item.get("definition", "")), L.chars(T["body"], usable * 0.92))
+                )
+                text_h = T["term"] * 1.25 + T["body"] * (1.3 + 1.15 * (d_lines - 1)) + 30
+                size = max(140.0, min(slot * 0.56, 360.0, slot - text_h - 20))
                 term_y = y + size + T["term"] * 0.95
                 idle = "bob" if i == 0 else "sway"  # icons keep living after they land
                 body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), cx, y + size / 2 + 10, size)}</g>'

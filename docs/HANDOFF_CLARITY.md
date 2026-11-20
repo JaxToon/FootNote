@@ -61,3 +61,19 @@ The owner compared the latest pipeline render (commit `c0c513b`) with an earlier
 - Do not paraphrase captions. If a phrase is too long, split the caption or shorten the narration itself.
 - Do not change NODI anatomy or brand tokens (see CLAUDE.md design rules).
 - Do not call ElevenLabs without the owner explicitly starting an audio step.
+
+## 5. Status (Claude Code, 2026-11-20)
+
+1. **Verified** — 88/88 tests, ruff clean, both specs valid, preview inspected.
+2. **Comprehension check** — `out/…/short/comprehension.md`. Three scenes failed and were
+   fixed first: hook (NODI dominated the concrete icons → `NODI_SIDE_SCALE` 0.78, icons
+   240 px), name-it (4-line definition in 3.6 s → one idea + `definition_card.icon` /
+   `icon_label` "Di sini: cuaca panas"), difference (grey definitions → ink).
+3. **`fnvideo check-clarity`** — `services/clarity.py`, rules (a)–(d); warnings in `validate`,
+   errors for `approved` specs in `validate`, `render` and inside `generate_tts`.
+4. **Long version** — 14 scenes, same example and rules, chapters kept; work example
+   (training ↔ salary, confounder: seniority); clarity-clean. Still outline-level (~3 min),
+   not the 8–12 min deliverable.
+5. **Text size** — `MIN_PORTRAIT_TEXT = 40` via `TYPE_PORTRAIT` (`label` 40, new `tick`,
+   `brand`), enforced by a test over all templates.
+6. **Owner review** — silent draft rendered for review. D-018 stays *proposed*.

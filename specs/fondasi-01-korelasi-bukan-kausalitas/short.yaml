@@ -212,7 +212,7 @@ scenes:
     props:
       items:
         - {icon: together, term: "KORELASI", definition: "Es krim & tenggelam naik bareng"}
-        - {icon: sun, term: "KAUSALITAS", definition: "Cuaca panas → lebih banyak yang berenang"}
+        - {icon: sun, term: "KAUSALITAS", definition: "Cuaca panas → lebih banyak berenang"}
       divider: "BEDA"
     duration_hint_seconds: 5.0
     beats:
