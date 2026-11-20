@@ -290,9 +290,9 @@ def main() -> None:
                 f"Format: {spec.meta.format} | {spec.meta.width}x{spec.meta.height} @ {spec.meta.fps}fps"
             )
             print(f"Scenes: {len(spec.scenes)} | Editorial status: {spec.editorial_status}")
-            from fnvideo.render.svg_scene import caption_warnings
+            from fnvideo.render.svg_scene import caption_warnings, character_warnings
 
-            for warning in caption_warnings(spec):
+            for warning in caption_warnings(spec) + character_warnings(spec):
                 print(f"WARN: {warning}")
             return
         if args.command == "plan":

@@ -193,6 +193,11 @@ class Layout:
 # NODI rig artwork box (assets/nodi_rig.js): 510 x 770 units before scaling.
 NODI_W, NODI_H = 510, 770
 SHORT_SAFE_BOTTOM = 0.80  # keep important info out of the bottom 20% (platform UI)
+# Measured rig geometry (artwork units): body centre x, feet incl. shadow, head y 31..343.
+NODI_CENTER_X, NODI_FEET_Y, NODI_TOP_Y = 255, 756, 31
+NODI_PORTRAIT_SCALE = 1.2
+NODI_SLIDE_SECONDS = 0.5
+HEADLINE_MIN = 110
 
 # 9:16 is the primary format: big type that reads on a phone at arm's length.
 TYPE_PORTRAIT = {
@@ -214,8 +219,10 @@ def compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
         left, right, top, bottom = 64, width - 64, 200, caption_base - 65
         nodi = None
         if mascot_on:
-            scale = 0.56
-            nodi = (right - NODI_W * scale, bottom - NODI_H * scale, scale)
+            # NODI is the performer: centred, feet on the content floor, head ~370px.
+            scale = NODI_PORTRAIT_SCALE
+            nodi = (width / 2 - NODI_CENTER_X * scale, bottom - NODI_FEET_Y * scale, scale)
+            bottom = nodi[1] - 24  # the content band sits above NODI's head
         return Layout(
             width, height, True, left, right, top, bottom, caption_base, TYPE_PORTRAIT, nodi
         )
@@ -372,8 +379,30 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
     els = Elements()
     muted = "#D8E0EF"
 
-    def headline_stack(head: str, sub: str | None, y: float, *, size: int | None = None) -> float:
+    def headline_stack(
+        head: str, sub: str | None, y: float, *, size: int | None = None, reserve: float = 0
+    ) -> float:
+        """Headline (+ optional supporting line) from y; fits above `bottom - reserve`.
+
+        The headline steps down to HEADLINE_MIN, then the supporting line is dropped, so a
+        tight band (e.g. above NODI) never overflows.
+        """
+        sup = T["supporting"]
+        limit = bottom - reserve
+
+        def measure(sz: int, with_sub: bool) -> float:
+            n = len(split_lines(head, L.chars(sz, em=0.62)))
+            end = y + sz * 0.8 + (n - 1) * sz * 1.04 + sz * 0.28
+            if with_sub and sub:
+                m = len(split_lines(sub, L.chars(sup, usable * 0.9)))
+                end += sup * 1.5 + (m - 1) * sup * 1.15 + sup * 0.28
+            return end
+
         size = size or T["headline"]
+        sizes = list(range(size, min(size, HEADLINE_MIN) - 1, -6)) or [size]
+        choice = next(((sz, True) for sz in sizes if measure(sz, True) <= limit), None)
+        choice = choice or next(((sz, False) for sz in sizes if measure(sz, False) <= limit), None)
+        size, with_sub = choice or (sizes[-1], False)
         svg, end = text_block(
             cx,
             y + size * 0.8,
@@ -385,8 +414,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             max_chars=L.chars(size, em=0.62),
         )
         els.add("headline", svg, "slide")
-        if sub:
-            sup = T["supporting"]
+        if sub and with_sub:
             svg, end = text_block(
                 cx,
                 end + sup * 1.5,
@@ -401,16 +429,16 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
 
     if template in {"title_question", "chapter_title"}:
         y = top
-        els.add(
-            "chapter", pill(cx, y + T["label"], str(prop.get("chapter", scene.title)), T["label"])
-        )
-        y += T["label"] * 2.6
+        if prop.get("chapter"):  # no fallback to the scene title
+            els.add("chapter", pill(cx, y + T["label"], str(prop["chapter"]), T["label"]))
+            y += T["label"] * 2.6
         end = headline_stack(
             str(prop.get("headline", prop.get("title", scene.title))),
-            str(prop.get("supporting_text", "Lihat lebih dekat sebelum menyimpulkan")),
+            prop.get("supporting_text"),
             y,
+            reserve=70,
         )
-        rule_y = end + 60
+        rule_y = end + 50
         els.add(
             "rule",
             f'<path d="M{cx - 120} {rule_y} H{cx + 120}" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>',
@@ -979,6 +1007,34 @@ def caption_warnings(spec: EpisodeSpec) -> list[str]:
     return warnings
 
 
+EXPLANATION_TEMPLATES = {
+    "paired_trend",
+    "line_chart",
+    "scatter_regression",
+    "causal_diagram",
+    "definition_card",
+}
+
+
+def character_warnings(spec: EpisodeSpec) -> list[str]:
+    """Authoring lint for NODI staging (portrait: NODI is a full-size performer)."""
+    if spec.meta.height <= spec.meta.width:
+        return []
+    out = []
+    for scene in spec.scenes:
+        if scene.character.mascot != "on":
+            continue
+        if scene.template in EXPLANATION_TEMPLATES:
+            out.append(
+                f"{scene.id}: NODI on in an explanation scene ({scene.template}) — turn it off so the material is full-screen"
+            )
+        if scene.background in {"navy", "navy_dark"}:
+            out.append(
+                f"{scene.id}: NODI on a navy background — prefer purple/teal/coral (rim outline is the fallback)"
+            )
+    return out
+
+
 def highlight_line(line: str, highlighted: list[str]) -> str:
     """Escape a caption line and wrap highlighted phrases in a yellow tspan."""
     if not highlighted:
@@ -1015,6 +1071,7 @@ def build_scene_html(
     )
     nodi = ""
     nodi_state = {}
+    index = next((i for i, s in enumerate(spec.scenes) if s.id == scene.id), 0)
     if layout.nodi:
         nx, ny, scale = layout.nodi
         nodi = nodi_layer(nx, ny, scale, rim=scene.background in DARK_BACKGROUNDS)
@@ -1024,7 +1081,13 @@ def build_scene_html(
                 scene.character.expression or "neutral", "neutral"
             ),
             # varies the talking-gesture schedule from scene to scene (still deterministic)
-            "gestureSeed": next((i for i, s in enumerate(spec.scenes) if s.id == scene.id), 0),
+            "gestureSeed": index,
+            # slide in/out only when the neighbouring scene has no NODI
+            "enter": index == 0 or spec.scenes[index - 1].character.mascot != "on",
+            "exit": index == len(spec.scenes) - 1
+            or spec.scenes[index + 1].character.mascot != "on",
+            "duration": float(timing_scene.get("duration_seconds", 0) or 0),
+            "slide": float(height - ny),
         }
     caps = []
     for idx, cap in enumerate(timing_scene.get("captions", [])):
@@ -1179,8 +1242,12 @@ def build_scene_html(
         for (const [e, node] of nodes) if (node) animateElement(e, node, t);
         const ml=document.getElementById('mascot-layer');
         if(mascotEnabled) {{
-          ml.setAttribute('opacity', smooth(t/0.5));
-          ml.setAttribute('transform', `translate(0 ${{Math.sin(t*2.1)*5}})`);
+          // Enter/exit by sliding through the bottom edge (0.5 s) when a neighbour has no NODI.
+          const D = nodiState.duration || 1e9, S = {NODI_SLIDE_SECONDS};
+          const inY = nodiState.enter ? (1 - easeOut(t / S)) * nodiState.slide : 0;
+          const outP = clamp((t - (D - S)) / S), outY = nodiState.exit ? outP * outP * nodiState.slide : 0;
+          ml.setAttribute('opacity', 1);
+          ml.setAttribute('transform', `translate(0 ${{inY + outY + Math.sin(t*2.1)*5}})`);
           if(nodi) {{
             // deterministic blink every 3.2 s; 'smile' from the audio pipeline = mouth closed
             const bp=(t+1.1)%3.2, blink = bp<0.16 ? 1-Math.abs(bp-0.08)/0.08 : 0;

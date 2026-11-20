@@ -8,7 +8,14 @@ import pytest
 from fnvideo.audio.timing import build_estimated_timing
 from fnvideo.models.episode import EpisodeSpec
 from fnvideo.render import engine
-from fnvideo.render.svg_scene import NODI_H, NODI_W, build_scene_html, compute_layout
+from fnvideo.render.svg_scene import (
+    NODI_CENTER_X,
+    NODI_H,
+    NODI_TOP_Y,
+    NODI_W,
+    build_scene_html,
+    compute_layout,
+)
 from fnvideo.services.spec_loader import load_episode_spec
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +38,9 @@ def test_layout_zones(fmt: str, width: int, height: int, mascot: bool) -> None:
     lay = compute_layout(width, height, mascot)
     assert lay.top < lay.bottom < lay.caption_base
     if fmt == "short":
-        assert lay.top == 200 and lay.bottom >= 1440  # content fills y=200..~1450
+        assert lay.top == 200
+        if not mascot:
+            assert lay.bottom >= 1440  # content fills y=200..~1450
         assert lay.caption_base <= height * 0.80  # one-line caption stays above the UI zone
         t = lay.type
         assert 110 <= t["headline"] <= 160
@@ -43,6 +52,11 @@ def test_layout_zones(fmt: str, width: int, height: int, mascot: bool) -> None:
         assert y >= 0 and y + NODI_H * s <= lay.caption_base
         if fmt == "long":  # NODI column is outside the content zone
             assert lay.right <= x
+        else:  # portrait: NODI is the centred performer below the content band
+            assert 1.2 <= s <= 1.5
+            assert abs((x + NODI_CENTER_X * s) - width / 2) < 1
+            assert 330 <= (343 - NODI_TOP_Y) * s <= 480  # head height in px
+            assert lay.bottom < y + NODI_TOP_Y * s
     else:
         assert lay.nodi is None
 
