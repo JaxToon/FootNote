@@ -79,9 +79,8 @@ def test_html_is_deterministic_and_has_no_wall_clock() -> None:
 
 def test_paired_trend_plots_spec_series() -> None:
     spec = _spec("long", 1920, 1080)
-    scene = spec.scenes[1].model_copy(
-        update={"props": {**spec.scenes[1].props, "series": [[1, 2, 3], [3, 2, 1]]}}
-    )
+    base = next(sc for sc in spec.scenes if sc.template == "paired_trend")
+    scene = base.model_copy(update={"props": {**base.props, "series": [[1, 2, 3], [3, 2, 1]]}})
     html = build_scene_html(spec, scene, {"captions": []}, {})
     assert html.count('data-reveal="') == 6  # one dot per data point
 

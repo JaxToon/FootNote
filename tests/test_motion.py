@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from fnvideo.qa.motion import allowed_hold_seconds, motion_per_second, motion_report
 
@@ -48,7 +49,8 @@ def test_scene_has_secondary_motion_hooks() -> None:
     root = Path(__file__).resolve().parents[1]
     spec = load_episode_spec(root / "specs/fondasi-01-korelasi-bukan-kausalitas/short.yaml")
     timing = build_estimated_timing(spec, 0.35)
-    html = build_scene_html(spec, spec.scenes[2], timing["scenes"][2], timing)
+    i = next(k for k, sc in enumerate(spec.scenes) if sc.template == "causal_diagram")
+    html = build_scene_html(spec, spec.scenes[i], timing["scenes"][i], timing)
     assert html.count("data-drift=") >= 18
     assert html.count("data-grain=") == 3 and "mix-blend-mode:overlay" in html
     assert 'data-idle="spin"' in html  # the sun icon keeps turning
@@ -73,4 +75,4 @@ def test_spec_holds_become_absolute_windows(tmp_path) -> None:
     st = timing["scenes"][1]
     ((a, b),) = _motion_holds(spec, tmp_path)
     assert a == st["start_seconds"] + 0.5 * st["duration_seconds"]
-    assert b == st["end_seconds"]
+    assert b == pytest.approx(st["end_seconds"])

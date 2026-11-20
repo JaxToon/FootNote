@@ -198,6 +198,7 @@ NODI_CENTER_X, NODI_FEET_Y, NODI_TOP_Y = 255, 756, 31
 NODI_PORTRAIT_SCALE = 1.2
 NODI_SLIDE_SECONDS = 0.5
 HEADLINE_MIN = 110
+DISPLAY_CAP_EM = 0.66  # Space Grotesk bold caps average advance (em), measured conservatively
 
 # 9:16 is the primary format: big type that reads on a phone at arm's length.
 TYPE_PORTRAIT = {
@@ -391,7 +392,10 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         limit = bottom - reserve
 
         def measure(sz: int, with_sub: bool) -> float:
-            n = len(split_lines(head, L.chars(sz, em=0.62)))
+            lines = split_lines(head, L.chars(sz, em=0.62))
+            n = len(lines)
+            if max(len(x) for x in lines) * sz * DISPLAY_CAP_EM > usable:  # a single long word
+                return float("inf")
             end = y + sz * 0.8 + (n - 1) * sz * 1.04 + sz * 0.28
             if with_sub and sub:
                 m = len(split_lines(sub, L.chars(sup, usable * 0.9)))
@@ -399,7 +403,10 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             return end
 
         size = size or T["headline"]
-        sizes = list(range(size, min(size, HEADLINE_MIN) - 1, -6)) or [size]
+        # below HEADLINE_MIN only as a last resort for one very long word
+        sizes = list(range(size, min(size, HEADLINE_MIN) - 1, -6)) + list(
+            range(HEADLINE_MIN - 6, 71, -6)
+        )
         choice = next(((sz, True) for sz in sizes if measure(sz, True) <= limit), None)
         choice = choice or next(((sz, False) for sz in sizes if measure(sz, False) <= limit), None)
         size, with_sub = choice or (sizes[-1], False)
@@ -632,6 +639,73 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             seq=10,
         )
 
+    elif template == "question_link" and portrait:
+        # 9:16: a vertical chain A ↓ ? ↓ B fills the tall canvas.
+        items = [
+            i if isinstance(i, dict) else {"label": str(i)}
+            for i in prop.get("labels", ["A", "?", "B"])
+        ][:3]
+        sup_text = prop.get("supporting_text")
+        sup = T["supporting"]
+        arrow_h, label_h = 96, T["node"] * 1.7
+        sup_h = sup * 2.6 if sup_text else 0
+        n = len(items)
+        labels_h = sum(label_h for it in items if it.get("label") and it.get("icon"))
+        box = min(340.0, (bottom - top - sup_h - (n - 1) * arrow_h - labels_h) / n)
+        total = n * box + (n - 1) * arrow_h + labels_h + sup_h
+        y = top + max(0.0, (bottom - top - total) / 2)
+        for i, item in enumerate(items):
+            x = cx - box / 2
+            fill = YELLOW if i == 1 else "#FFFFFF"
+            body = (
+                f'<rect x="{x:.1f}" y="{y:.1f}" width="{box:.1f}" height="{box:.1f}" rx="44" fill="{fill}" '
+                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="4"/>'
+            )
+            if item.get("icon"):
+                body += icon(str(item["icon"]), cx, y + box / 2, box * 0.76)
+            else:
+                body += svg_text(
+                    cx,
+                    y + box / 2 + T["headline"] * 0.3,
+                    str(item.get("label", "")),
+                    size=int(T["headline"] * 0.8),
+                    fill="#111D38" if i == 1 else PAPER,
+                    weight=700,
+                    family=FONT_DISPLAY,
+                    max_chars=8,
+                )
+            y += box
+            if item.get("label") and item.get("icon"):
+                body += svg_text(
+                    cx,
+                    y + label_h * 0.72,
+                    str(item["label"]),
+                    size=T["node"],
+                    max_chars=L.chars(T["node"]),
+                )
+                y += label_h
+            els.add(f"item-{i}", body)
+            if i < n - 1:
+                a0, a1 = y + 16, y + arrow_h - 16
+                els.add(
+                    f"link-{i}",
+                    f'<path d="M{cx} {a0} V{a1}" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>'
+                    f'<path d="M{cx - 20} {a1 - 22} L{cx} {a1} L{cx + 20} {a1 - 22}" fill="none" '
+                    f'stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
+                    "draw",
+                )
+                y += arrow_h
+        if sup_text:
+            svg, _ = text_block(
+                cx,
+                y + sup * 1.6,
+                str(sup_text),
+                size=sup,
+                fill=muted,
+                max_chars=L.chars(sup, usable * 0.9),
+            )
+            els.add("supporting", svg, "slide")  # fmt: skip
+
     elif template == "question_link":
         items = [
             i if isinstance(i, dict) else {"label": str(i)}
@@ -780,6 +854,8 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         limit = (L.nodi[1] - 40) if (portrait and L.nodi) else bottom
         n = max(1, len(points))
         card_h = min(T["body"] * 4.6, (limit - y0 - gap * (n - 1)) / n)
+        # centre the stack in the free band (slightly above centre reads better)
+        y0 += max(0.0, (limit - y0 - (n * card_h + gap * (n - 1))) * 0.42)
         num_r = T["number"] * 0.95
         text_x0 = L.left + 40 + 2 * num_r + 32
         for i, point in enumerate(points):
@@ -789,9 +865,12 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             els.add(
                 f"point-{i}",
                 rounded_card(L.left, y, usable, card_h, "#FFFFFF", 0.08, YELLOW if i == 0 else "#FFFFFF", 0.35, 30)
+                # number badge keeps a gentle pulse so text-only scenes never freeze
+                + '<g data-idle="pulse">'
                 + f'<circle cx="{L.left + 40 + num_r}" cy="{y + card_h / 2}" r="{num_r}" fill="{YELLOW}"/>'
                 + svg_text(L.left + 40 + num_r, y + card_h / 2 + T["number"] * 0.36, str(i + 1),
                            size=T["number"], fill="#111D38", weight=800, max_chars=3)
+                + "</g>"
                 + svg_text(text_x0, ty, str(point), size=T["body"], anchor="start",
                            max_chars=L.chars(T["body"], L.right - text_x0 - 40), line_gap=T["body"] * 1.16),
                 "slide",

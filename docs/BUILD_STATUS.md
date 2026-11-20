@@ -1,5 +1,15 @@
 # Build Status
 
+## Motion/visual pass — 2026-11-20
+
+- Pilot short re-authored to 7 scenes (40.65 s) with beats; silent draft render passes
+  technical QA and motion QA (mean 1.38, min 0.41; baseline was mean 0.28 with 25/33
+  frozen seconds). `pytest`: 80 passed; ruff clean.
+- New: beat/cue system (schema v2), secondary motion + grain, motion QA gate
+  (`fnvideo motion`, run automatically after `render`), bundled OFL brand fonts, 9:16 type
+  scale, original icon set, NODI as centred performer, minimal branding.
+- Still draft: narration/editorial, no real voice yet, reference-video comparison pending.
+
 ## Verified locally — 2026-11-20 (Windows 11, Python 3.11.9, FFmpeg 9.0.2, Playwright Chromium)
 
 - `pytest`: 47 passed (includes real-Chromium template/scene-isolation test).

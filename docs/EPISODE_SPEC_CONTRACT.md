@@ -1,10 +1,10 @@
-# Episode Spec Contract v1
+# Episode Spec Contract v2
 
 The YAML files in `specs/` are valid draft examples. This document describes the intended contract; Pydantic models are the executable contract and should evolve with explicit schema-version migrations.
 
 ## Top-level keys
 
-- `schema_version`: integer; current starter version is `1`.
+- `schema_version`: integer; current version is `2`. v1 files are migrated on load (`services/spec_loader.migrate_spec`); v2 only adds the optional scene keys `beats` and `holds`.
 - `meta`: stable identity, title, series, episode, format, language, fps, dimensions, paired deliverable, status.
 - `voice`: provider (`elevenlabs`, `recorded`, `none`), optional voice ID, speed. Production defaults to the owner's ElevenLabs clone; never put secrets here. With the default `eleven_v4` model, keep `speed: 1.0` because the v4 model path does not use the legacy speed control.
 - `editorial_status`: `draft`, `needs_review`, or `approved`.
@@ -21,6 +21,26 @@ The YAML files in `specs/` are valid draft examples. This document describes the
 - `props`: template-specific object validated by that template's schema.
 - `duration_hint_seconds`: optional editorial hint, not authoritative when audio timing exists.
 - `source_notes`: factual caveats, illustration notes, or claim references.
+- `beats` (v2, optional): cues that animate one element at a moment in the narration.
+  - `at`: `caption:<index>` (that caption's start), `word:<word>` (first whole-word
+    occurrence; provider word timestamps when available, otherwise estimated), or a number
+    `0..1` (fraction of the scene duration).
+  - `target`: an element `data-id` of the scene template (e.g. `headline`, `rule`,
+    `chart-0`, `node-1`, `arrow-2`, `item-0`, `link-0`, `point-1`, `label`) or `nodi`.
+    An unknown target fails the build and lists the template's element IDs.
+  - `action`: `pop` | `slide` | `draw` | `count` | `highlight` | `exit`; for `nodi`,
+    `pose:<pose>` or `expr:<expression>`.
+  - `duration`: optional seconds (defaults: pop .35, slide .45, draw .8, count .9,
+    highlight .5, exit .3). Elements without an enter beat stagger in by 0.15 s.
+- `holds` (v2, optional): intentional visual holds `{start, end, reason}` (fractions of the
+  scene) that the motion QA excuses.
+
+Template props added for icons: `causal_diagram.nodes[].icon`, `question_link.labels[]`
+as `{label, icon}`, `paired_trend.icons` and optional `paired_trend.x_labels`. Icon names
+are the files in `src/fnvideo/render/assets/icons/`.
+
+Authoring lint (`fnvideo validate`): portrait captions ≤ 5 words and one line; NODI off in
+explanation templates; avoid navy backgrounds behind NODI.
 
 ## Validation principles
 
@@ -33,4 +53,4 @@ The YAML files in `specs/` are valid draft examples. This document describes the
 
 ## Future extensions
 
-Add explicit `data`, `cues`, `assets`, `audio`, `timing`, `transitions`, and `output_profiles` fields when implementation requires them. Do not add speculative complexity without a tested use case.
+Add explicit `data`, `assets`, `audio`, `timing`, `transitions`, and `output_profiles` fields when implementation requires them. Do not add speculative complexity without a tested use case.
