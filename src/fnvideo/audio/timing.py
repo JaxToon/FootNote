@@ -8,10 +8,10 @@ from typing import Any
 
 import numpy as np
 
-from fnvideo.models.episode import EpisodeSpec
 
-
-def _alignment_phrase(alignment: dict[str, Any] | None, transcript: str, phrase: str) -> tuple[float, float] | None:
+def _alignment_phrase(
+    alignment: dict[str, Any] | None, transcript: str, phrase: str
+) -> tuple[float, float] | None:
     if not alignment:
         return None
     chars = alignment.get("characters", [])
@@ -30,7 +30,9 @@ def _alignment_phrase(alignment: dict[str, Any] | None, transcript: str, phrase:
     return min(valid_starts), max(valid_ends)
 
 
-def _estimate_phrase_windows(transcript: str, phrases: list[str], duration: float) -> list[dict[str, Any]]:
+def _estimate_phrase_windows(
+    transcript: str, phrases: list[str], duration: float
+) -> list[dict[str, Any]]:
     total_chars = max(1, len(transcript))
     results: list[dict[str, Any]] = []
     cursor = 0.0
@@ -44,12 +46,16 @@ def _estimate_phrase_windows(transcript: str, phrases: list[str], duration: floa
             end = min(duration, start + duration / max(1, len(phrases)))
         start = max(cursor, start)
         end = max(start + 0.12, end)
-        results.append({"start": min(start, duration), "end": min(end, duration), "estimated": True})
+        results.append(
+            {"start": min(start, duration), "end": min(end, duration), "estimated": True}
+        )
         cursor = min(end, duration)
     return results
 
 
-def caption_timings(scene: Any, duration: float, alignment: dict[str, Any] | None) -> list[dict[str, Any]]:
+def caption_timings(
+    scene: Any, duration: float, alignment: dict[str, Any] | None
+) -> list[dict[str, Any]]:
     phrases = [c.text for c in scene.captions]
     windows: list[dict[str, Any]] = []
     for phrase in phrases:
@@ -62,7 +68,9 @@ def caption_timings(scene: Any, duration: float, alignment: dict[str, Any] | Non
     # Slightly expand short captions for readability, but keep scene boundaries.
     for i, window in enumerate(windows):
         window["start"] = max(0.0, float(window["start"]) - 0.08)
-        window["end"] = min(duration, max(float(window["end"]) + 0.18, float(window["start"]) + 0.45))
+        window["end"] = min(
+            duration, max(float(window["end"]) + 0.18, float(window["start"]) + 0.45)
+        )
         if i + 1 < len(windows):
             window["end"] = min(float(window["end"]), float(windows[i + 1]["start"]) + 0.02)
     return [

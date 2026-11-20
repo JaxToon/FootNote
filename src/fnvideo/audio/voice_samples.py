@@ -47,8 +47,14 @@ def inspect_voice_samples(
         try:
             result = subprocess.run(
                 [
-                    "ffprobe", "-v", "error", "-show_entries", "format=duration",
-                    "-of", "json", str(path),
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "json",
+                    str(path),
                 ],
                 capture_output=True,
                 text=True,
@@ -60,27 +66,45 @@ def inspect_voice_samples(
             continue
         samples.append(VoiceSample(str(path), duration, path.stat().st_size))
         if duration < 5:
-            errors.append(f"{path.name} is {duration:.1f}s; each sample must be at least 5 seconds.")
+            errors.append(
+                f"{path.name} is {duration:.1f}s; each sample must be at least 5 seconds."
+            )
 
     total = sum(sample.duration_seconds for sample in samples)
     if profile == "ivc":
         if total < 10:
-            errors.append(f"Combined sample duration is {total:.1f}s; at least 10 seconds is required for IVC.")
+            errors.append(
+                f"Combined sample duration is {total:.1f}s; at least 10 seconds is required for IVC."
+            )
         if 0 < total < 60:
-            warnings.append("For stronger IVC results, target 1–2 minutes of clean, consistent speech.")
+            warnings.append(
+                "For stronger IVC results, target 1–2 minutes of clean, consistent speech."
+            )
         if total > 180:
-            warnings.append("More than 3 minutes may add little benefit and can reduce clone consistency; select the cleanest 1–2 minutes for IVC.")
+            warnings.append(
+                "More than 3 minutes may add little benefit and can reduce clone consistency; select the cleanest 1–2 minutes for IVC."
+            )
     else:
         if total < 1800:
-            errors.append(f"Combined sample duration is {total/60:.1f} minutes; prepare at least 30 minutes for PVC.")
+            errors.append(
+                f"Combined sample duration is {total / 60:.1f} minutes; prepare at least 30 minutes for PVC."
+            )
         elif total < 3600:
-            warnings.append("PVC can use this dataset, but provider guidance recommends at least 1 hour and ideally close to 3 hours for best results.")
+            warnings.append(
+                "PVC can use this dataset, but provider guidance recommends at least 1 hour and ideally close to 3 hours for best results."
+            )
         elif total <= 10800:
-            warnings.append("PVC dataset is within the 1–3 hour target; prioritize consistent clean audio over adding more minutes.")
+            warnings.append(
+                "PVC dataset is within the 1–3 hour target; prioritize consistent clean audio over adding more minutes."
+            )
         else:
-            warnings.append("Dataset exceeds 3 hours. Review for consistency and keep only clean samples in the intended narration style.")
+            warnings.append(
+                "Dataset exceeds 3 hours. Review for consistency and keep only clean samples in the intended narration style."
+            )
     if len(samples) > 1:
-        warnings.append("Check that every sample uses the same room, microphone, distance, speaking style, and volume.")
+        warnings.append(
+            "Check that every sample uses the same room, microphone, distance, speaking style, and volume."
+        )
     return samples, errors, warnings
 
 

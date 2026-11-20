@@ -58,8 +58,12 @@ class ElevenLabsClient:
                 handle = path.open("rb")
                 handles.append(handle)
                 mime_by_suffix = {
-                    ".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4",
-                    ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg",
+                    ".mp3": "audio/mpeg",
+                    ".wav": "audio/wav",
+                    ".m4a": "audio/mp4",
+                    ".aac": "audio/aac",
+                    ".flac": "audio/flac",
+                    ".ogg": "audio/ogg",
                 }
                 mime = mime_by_suffix.get(path.suffix.lower())
                 if mime is None:

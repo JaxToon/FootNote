@@ -19,7 +19,9 @@ class FakeClient:
         return SpeechResult(audio=b"fake-mp3", alignment=None, request_id=f"req-{self.calls}")
 
 
-def test_tts_cache_reuses_unchanged_scene_and_force_regenerates(tmp_path: Path, monkeypatch) -> None:
+def test_tts_cache_reuses_unchanged_scene_and_force_regenerates(
+    tmp_path: Path, monkeypatch
+) -> None:
     spec_path = Path("specs/fondasi-01-korelasi-bukan-kausalitas/short.yaml")
     spec = load_episode_spec(spec_path)
     settings = Settings(
@@ -47,7 +49,9 @@ def test_tts_cache_reuses_unchanged_scene_and_force_regenerates(tmp_path: Path, 
         Path(command[-1]).write_bytes(b"fake-wav")
 
     monkeypatch.setattr(pipeline, "_run", fake_run)
-    monkeypatch.setattr(pipeline, "write_srt", lambda _timing, output: output.write_text("", encoding="utf-8"))
+    monkeypatch.setattr(
+        pipeline, "write_srt", lambda _timing, output: output.write_text("", encoding="utf-8")
+    )
     FakeClient.calls = 0
 
     output = tmp_path / "episode"

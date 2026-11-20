@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-
 from pathlib import Path
 
 from fnvideo.audio.elevenlabs import ElevenLabsClient
@@ -13,7 +12,10 @@ class FakeResponse:
     headers = {"request-id": "req_test"}
 
     def json(self):
-        return {"audio_base64": base64.b64encode(b"fake-mp3").decode(), "alignment": {"characters": ["H"]}}
+        return {
+            "audio_base64": base64.b64encode(b"fake-mp3").decode(),
+            "alignment": {"characters": ["H"]},
+        }
 
 
 class FakeSession:
@@ -31,7 +33,9 @@ def test_multilingual_v2_uses_timestamped_tts_endpoint() -> None:
     fake = FakeSession()
     client.session = fake
     result = client.speech_with_timestamps(
-        "Halo", model_id="eleven_multilingual_v2", output_format="mp3_44100_128",
+        "Halo",
+        model_id="eleven_multilingual_v2",
+        output_format="mp3_44100_128",
         voice_settings={"stability": 0.4},
     )
     assert result.audio == b"fake-mp3"
@@ -48,9 +52,14 @@ def test_eleven_v4_uses_text_to_dialogue_with_timestamps() -> None:
     fake = FakeSession()
     client.session = fake
     client.speech_with_timestamps(
-        "Halo NODI", model_id="eleven_v4", output_format="mp3_44100_192",
+        "Halo NODI",
+        model_id="eleven_v4",
+        output_format="mp3_44100_192",
         voice_settings={"stability": 0.45, "similarity": 0.82, "clone_strength": 0.0},
-        previous_text="Sebelumnya", next_text="Berikutnya", language_code="id", seed=7,
+        previous_text="Sebelumnya",
+        next_text="Berikutnya",
+        language_code="id",
+        seed=7,
     )
     method, url, kwargs = fake.calls[0]
     assert method == "POST"

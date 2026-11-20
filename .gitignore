@@ -30,3 +30,4 @@ private/voice_samples/**
 *.m4a
 *.flac
 !assets/voice/*.md
+*.egg-info/

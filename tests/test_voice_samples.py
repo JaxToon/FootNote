@@ -12,7 +12,9 @@ def test_voice_sample_inspection_reports_recommended_duration(tmp_path: Path, mo
     sample.write_bytes(b"audio")
 
     def fake_run(*args, **kwargs):
-        return subprocess.CompletedProcess(args[0], 0, json.dumps({"format": {"duration": "72.5"}}), "")
+        return subprocess.CompletedProcess(
+            args[0], 0, json.dumps({"format": {"duration": "72.5"}}), ""
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     samples, errors, warnings = inspect_voice_samples([sample])
@@ -26,7 +28,9 @@ def test_voice_sample_inspection_blocks_too_short_sample(tmp_path: Path, monkeyp
     sample.write_bytes(b"audio")
 
     def fake_run(*args, **kwargs):
-        return subprocess.CompletedProcess(args[0], 0, json.dumps({"format": {"duration": "4.0"}}), "")
+        return subprocess.CompletedProcess(
+            args[0], 0, json.dumps({"format": {"duration": "4.0"}}), ""
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     _, errors, _ = inspect_voice_samples([sample])

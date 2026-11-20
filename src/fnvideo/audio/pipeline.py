@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from fnvideo.audio.elevenlabs import ElevenLabsClient
-from fnvideo.audio.timing import build_rms_envelope, caption_timings, map_mouth_shapes, probe_duration, write_srt
+from fnvideo.audio.timing import (
+    build_rms_envelope,
+    caption_timings,
+    map_mouth_shapes,
+    probe_duration,
+    write_srt,
+)
 from fnvideo.config import Settings
 from fnvideo.models.episode import EpisodeSpec
 
@@ -21,7 +27,9 @@ def _run(cmd: list[str]) -> None:
 def _voice_settings(settings: Settings, model_id: str, speed: float = 1.0) -> dict[str, Any]:
     if model_id == "eleven_v4":
         if speed != 1.0:
-            raise ValueError("Eleven v4 does not support the speed control; set voice.speed to 1.0 in the episode spec.")
+            raise ValueError(
+                "Eleven v4 does not support the speed control; set voice.speed to 1.0 in the episode spec."
+            )
         # Eleven v4 uses Stability and Similarity. Older-model controls such as
         # Style, Speaker Boost and Speed are intentionally omitted.
         return {
@@ -67,7 +75,7 @@ def generate_tts(
     for index, scene in enumerate(spec.scenes):
         next_text = spec.scenes[index + 1].narration if index + 1 < len(spec.scenes) else None
         voice_settings = _voice_settings(settings, settings.elevenlabs_model_id, spec.voice.speed)
-        seed_material = f"{spec.meta.id}:{scene.id}:{settings.elevenlabs_model_id}".encode("utf-8")
+        seed_material = f"{spec.meta.id}:{scene.id}:{settings.elevenlabs_model_id}".encode()
         seed = int(hashlib.sha256(seed_material).hexdigest()[:8], 16)
         cache_input = {
             "narration": scene.narration,
@@ -78,11 +86,17 @@ def generate_tts(
             "previous_text": previous_text,
             "next_text": next_text,
             "seed": seed,
-            "language_code": settings.elevenlabs_language_code if settings.elevenlabs_model_id == "eleven_v4" else None,
-            "provider_route": "text-to-dialogue/with-timestamps" if settings.elevenlabs_model_id == "eleven_v4" else "text-to-speech/with-timestamps",
+            "language_code": settings.elevenlabs_language_code
+            if settings.elevenlabs_model_id == "eleven_v4"
+            else None,
+            "provider_route": "text-to-dialogue/with-timestamps"
+            if settings.elevenlabs_model_id == "eleven_v4"
+            else "text-to-speech/with-timestamps",
         }
         cache_hash = hashlib.sha256(
-            json.dumps(cache_input, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            json.dumps(
+                cache_input, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
         ).hexdigest()
         mp3_path = audio_dir / f"{scene.id}.mp3"
         cache_path = audio_dir / f"{scene.id}.cache.json"
@@ -109,7 +123,9 @@ def generate_tts(
                 previous_text=previous_text,
                 next_text=next_text,
                 seed=seed,
-                language_code=settings.elevenlabs_language_code if settings.elevenlabs_model_id == "eleven_v4" else None,
+                language_code=settings.elevenlabs_language_code
+                if settings.elevenlabs_model_id == "eleven_v4"
+                else None,
             )
             tmp_mp3 = mp3_path.with_suffix(".tmp.mp3")
             tmp_mp3.write_bytes(result.audio)
@@ -123,7 +139,9 @@ def generate_tts(
                 "alignment": alignment,
                 "request_id": request_id,
             }
-            cache_path.write_text(json.dumps(cache_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            cache_path.write_text(
+                json.dumps(cache_payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             print(f"[TTS] {scene.id}: {duration:.2f}s")
 
         speech_files.append(mp3_path)
@@ -133,7 +151,8 @@ def generate_tts(
                 "title": scene.title,
                 "audio_file": str(mp3_path.relative_to(output_dir)),
                 "speech_duration_seconds": duration,
-                "duration_seconds": duration + (settings.audio_gap_seconds if index < len(spec.scenes) - 1 else 0.25),
+                "duration_seconds": duration
+                + (settings.audio_gap_seconds if index < len(spec.scenes) - 1 else 0.25),
                 "alignment": alignment,
                 "captions": caption_timings(scene, duration, alignment),
                 "request_id": request_id,
@@ -148,19 +167,45 @@ def generate_tts(
     input_index = 0
     for i, path in enumerate(speech_files):
         inputs.extend(["-i", str(path)])
-        filters.append(f"[{input_index}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a{input_index}]")
+        filters.append(
+            f"[{input_index}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a{input_index}]"
+        )
         concat_labels.append(f"[a{input_index}]")
         input_index += 1
         gap = settings.audio_gap_seconds if i < len(speech_files) - 1 else 0.25
         if gap > 0:
-            inputs.extend(["-f", "lavfi", "-t", f"{gap:.3f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"])
-            filters.append(f"[{input_index}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[g{input_index}]")
+            inputs.extend(
+                [
+                    "-f",
+                    "lavfi",
+                    "-t",
+                    f"{gap:.3f}",
+                    "-i",
+                    "anullsrc=channel_layout=stereo:sample_rate=44100",
+                ]
+            )
+            filters.append(
+                f"[{input_index}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[g{input_index}]"
+            )
             concat_labels.append(f"[g{input_index}]")
             input_index += 1
     filters.append("".join(concat_labels) + f"concat=n={len(concat_labels)}:v=0:a=1[outa]")
     voice_wav = output_dir / "voice.wav"
     _run(
-        ["ffmpeg", "-y", *inputs, "-filter_complex", ";".join(filters), "-map", "[outa]", "-ar", "44100", "-ac", "2", str(voice_wav)]
+        [
+            "ffmpeg",
+            "-y",
+            *inputs,
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "[outa]",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            str(voice_wav),
+        ]
     )
 
     cursor = 0.0
@@ -168,7 +213,9 @@ def generate_tts(
         scene["start_seconds"] = cursor
         scene["end_seconds"] = cursor + scene["duration_seconds"]
         cursor = scene["end_seconds"]
-        scene.pop("alignment", None)  # Do not keep full alignment payload in public timing manifest.
+        scene.pop(
+            "alignment", None
+        )  # Do not keep full alignment payload in public timing manifest.
     envelope = build_rms_envelope(voice_wav, spec.meta.fps)
     timing = {
         "episode_id": spec.meta.id,

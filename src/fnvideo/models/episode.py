@@ -23,7 +23,7 @@ class EpisodeMeta(StrictModel):
     status: Literal["draft", "review", "approved"] = "draft"
 
     @model_validator(mode="after")
-    def validate_aspect_ratio(self) -> "EpisodeMeta":
+    def validate_aspect_ratio(self) -> EpisodeMeta:
         ratio = self.width / self.height
         if self.format == "short" and not (0.54 <= ratio <= 0.58):
             raise ValueError("Short format should use a 9:16 canvas (approximately 0.5625 ratio)")
@@ -48,7 +48,9 @@ class CharacterConfig(StrictModel):
     mascot: Literal["on", "off"] = "off"
     presenter_pose: str | None = None
     mascot_pose: str | None = None
-    mascot_outfit: Literal["classic", "academic", "data_explorer", "creator", "career_ready"] = "classic"
+    mascot_outfit: Literal["classic", "academic", "data_explorer", "creator", "career_ready"] = (
+        "classic"
+    )
     expression: str | None = None
 
 
@@ -75,7 +77,7 @@ class EpisodeSpec(StrictModel):
     scenes: list[SceneSpec] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def unique_scene_ids(self) -> "EpisodeSpec":
+    def unique_scene_ids(self) -> EpisodeSpec:
         ids = [scene.id for scene in self.scenes]
         if len(ids) != len(set(ids)):
             raise ValueError("Scene IDs must be unique within an episode")
