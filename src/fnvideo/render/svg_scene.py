@@ -4,6 +4,7 @@ import html
 import json
 import math
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from fnvideo.models.episode import EpisodeSpec, SceneSpec
@@ -175,19 +176,104 @@ def nodi_svg(x: float, y: float, scale: float, pose: str, outfit: str, expressio
     </g>'''
 
 
-def template_art(scene: SceneSpec, width: int, height: int) -> str:
+@dataclass(frozen=True)
+class Layout:
+    """Canvas zones for one scene. Templates draw only inside the content zone."""
+
+    width: int
+    height: int
+    portrait: bool
+    cx: float  # content zone centre x
+    rw: float  # content zone reference width (fractions are taken of this)
+    top: float  # first content row baseline
+    bottom: float  # content must end above this y
+    caption_y: float
+    caption_h: float
+    nodi: tuple[float, float, float] | None  # x, y, scale
+
+    def chars(self, base: int) -> int:
+        """Scale a full-width max-chars budget to the content zone width."""
+        return max(8, int(base * self.rw / self.width))
+
+
+# NODI puppet artwork occupies roughly 265 x 345 units before scaling.
+NODI_W, NODI_H = 265, 345
+SHORT_SAFE_BOTTOM = 0.80  # keep important info out of the bottom 20% (platform UI)
+
+
+def compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
     portrait = height > width
-    cx = width / 2
-    top = 265 if portrait else 185
-    main_y = 700 if portrait else 470
+    if portrait:
+        cap_h = 190
+        caption_y = height * SHORT_SAFE_BOTTOM - 40 - cap_h
+        nodi = None
+        if mascot_on:
+            scale = 0.78
+            nodi = (width - 64 - NODI_W * scale, caption_y - 24 - NODI_H * scale, scale)
+        return Layout(
+            width, height, True, width / 2, width, 265, caption_y - 40, caption_y, cap_h, nodi
+        )
+    cap_h = 150
+    caption_y = height - 290
+    top, bottom = 185, caption_y - 30
+    if mascot_on:
+        scale = 0.80
+        column = 380
+        nodi = (width - 64 - NODI_W * scale, (top + bottom) / 2 - NODI_H * scale / 2, scale)
+        left, right = 64, width - column
+        return Layout(
+            width,
+            height,
+            False,
+            (left + right) / 2,
+            right - left,
+            top,
+            bottom,
+            caption_y,
+            cap_h,
+            nodi,
+        )
+    return Layout(width, height, False, width / 2, width, top, bottom, caption_y, cap_h, None)
+
+
+def _series_points(
+    values: list[float], x: float, y: float, w: float, h: float
+) -> list[tuple[float, float]]:
+    """Map numeric series into a chart box (min..max normalised to the plotting band)."""
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1.0
+    n = len(values)
+    return [
+        (x + 42 + j * (w - 84) / max(1, n - 1), y + h - 75 - ((v - lo) / span) * (h - 175))
+        for j, v in enumerate(values)
+    ]
+
+
+def _illustrative_series(i: int) -> list[float]:
+    """Deterministic illustrative upward trends, used only when a spec gives no data."""
+    return [0.16 + 0.12 * j + 0.11 * math.sin(j * 1.3 + i * 0.4) for j in range(6)]
+
+
+def _dots(points: list[tuple[float, float]], color: str, r: int = 10) -> str:
+    n = len(points)
+    return "".join(
+        f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{color}" '
+        f'data-reveal="{0.25 + 0.7 * j / max(1, n - 1):.3f}"/>'
+        for j, (px, py) in enumerate(points)
+    )
+
+
+def template_art(scene: SceneSpec, layout: Layout) -> str:
+    L = layout
+    portrait = L.portrait
+    cx, rw, top = L.cx, L.rw, L.top
     prop = scene.props
     template = scene.template
     out: list[str] = []
 
     if template in {"title_question", "chapter_title"}:
         out.append(pill(cx, top, str(prop.get("chapter", scene.title))))
-        headline = str(prop.get("headline", prop.get("title", scene.title))).replace(" ≠ ", " ≠ ")
-        maxc = 16 if portrait else 30
+        headline = str(prop.get("headline", prop.get("title", scene.title)))
         size = 94 if portrait else 86
         out.append(
             svg_text(
@@ -195,36 +281,37 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
                 top + 220,
                 headline,
                 size=size,
-                fill=PAPER,
                 weight=800,
-                max_chars=maxc,
+                max_chars=16 if portrait else L.chars(30),
                 line_gap=size * 1.22,
             )
         )
-        supporting = prop.get("supporting_text", "Lihat lebih dekat sebelum menyimpulkan")
+        supporting = str(prop.get("supporting_text", "Lihat lebih dekat sebelum menyimpulkan"))
+        sup_y = top + (500 if portrait else 330)
         out.append(
             svg_text(
                 cx,
-                top + (500 if portrait else 340),
-                str(supporting),
+                sup_y,
+                supporting,
                 size=32 if portrait else 30,
                 fill="#D8E0EF",
                 weight=500,
-                max_chars=34 if portrait else 70,
+                max_chars=34 if portrait else L.chars(70),
             )
         )
+        rule_y = top + (590 if portrait else 400)
         out.append(
-            f'<path d="M{cx - 115} {top + 590} H{cx + 115}" stroke="{YELLOW}" stroke-width="8" stroke-linecap="round"/>'
+            f'<path d="M{cx - 115} {rule_y} H{cx + 115}" stroke="{YELLOW}" '
+            'stroke-width="8" stroke-linecap="round"/>'
         )
 
     elif template == "definition_card":
         term = str(prop.get("term", "Konsep"))
         definition = str(prop.get("definition", scene.purpose))
-        card_w = width * 0.78
-        card_h = 520 if portrait else 360
-        x = cx - card_w / 2
-        y = top + 120
-        out.append(rounded_card(x, y, card_w, card_h, "#F4F1E8", 0.98, "#F3D65B", 0.85, 34))
+        card_w = rw * 0.78
+        card_h = 520 if portrait else 330
+        x, y = cx - card_w / 2, top + 120
+        out.append(rounded_card(x, y, card_w, card_h, PAPER, 0.98, YELLOW, 0.85, 34))
         out.append(
             svg_text(
                 cx,
@@ -239,130 +326,127 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
         out.append(
             svg_text(
                 cx,
-                y + 250,
+                y + 240,
                 definition,
                 size=34 if portrait else 31,
                 fill="#243D57",
                 weight=500,
-                max_chars=30 if portrait else 55,
+                max_chars=30 if portrait else L.chars(55),
             )
         )
-        out.append(pill(cx, y + card_h + 85, "KEY IDEA"))
+        out.append(pill(cx, y + card_h + 55, "KEY IDEA"))
 
-    elif template in {"paired_trend", "line_chart", "scatter_regression"}:
-        if template == "paired_trend":
-            labels = prop.get("variables", ["Variabel A", "Variabel B"])
-            chart_w = width * (0.78 if portrait else 0.39)
-            chart_h = 340 if portrait else 340
-            gap = 34 if portrait else 42
-            start_x = cx - chart_w - gap / 2 if not portrait else cx - chart_w / 2
-            positions = (
-                [(start_x, main_y - 80), (start_x + chart_w + gap, main_y - 80)]
-                if not portrait
-                else [(start_x, main_y - 120), (start_x, main_y + 240)]
-            )
-            for i, label in enumerate(labels[:2]):
-                x, y = positions[i]
-                out.append(
-                    rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 30)
-                )
-                out.append(
-                    svg_text(
-                        x + chart_w / 2,
-                        y + 76,
-                        str(label),
-                        size=30 if portrait else 26,
-                        fill=PAPER,
-                        max_chars=20 if portrait else 24,
-                    )
-                )
-                points = [
-                    (
-                        x + 42 + j * (chart_w - 84) / 5,
-                        y
-                        + chart_h
-                        - 75
-                        - (0.16 + 0.12 * j + 0.11 * math.sin(j * 1.3 + i * 0.4)) * (chart_h - 160),
-                    )
-                    for j in range(6)
-                ]
-                path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
-                out.append(
-                    f'<path d="{path}" fill="none" stroke="{YELLOW if i == 0 else TEAL}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>'
-                )
-                for px, py in points:
-                    out.append(
-                        f'<circle cx="{px:.1f}" cy="{py:.1f}" r="10" fill="{YELLOW if i == 0 else TEAL}"/>'
-                    )
+    elif template == "paired_trend":
+        labels = prop.get("variables", ["Variabel A", "Variabel B"])
+        data = prop.get("series")
+        chart_h = 340
+        if portrait:
+            chart_w = rw * 0.78
+            positions = [(cx - chart_w / 2, top + 65), (cx - chart_w / 2, top + 65 + chart_h + 40)]
+        else:
+            gap = 42
+            chart_w = rw * 0.39
+            positions = [(cx - chart_w - gap / 2, top + 100), (cx + gap / 2, top + 100)]
+        for i, label in enumerate(labels[:2]):
+            x, y = positions[i]
+            color = YELLOW if i == 0 else TEAL
+            out.append(rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 30))
             out.append(
-                pill(
-                    cx,
-                    main_y + (535 if portrait else 380),
-                    str(prop.get("data_label", "ILUSTRASI")),
+                svg_text(
+                    x + chart_w / 2,
+                    y + 76,
+                    str(label),
+                    size=30 if portrait else 26,
+                    max_chars=20 if portrait else 24,
                 )
             )
-        elif template == "line_chart":
-            x0, y0 = cx - width * 0.35, main_y + (300 if portrait else 160)
-            chart_w, chart_h = width * 0.70, 420 if portrait else 360
-            out.append(
-                rounded_card(
-                    x0 - 35,
-                    y0 - chart_h - 80,
-                    chart_w + 70,
-                    chart_h + 140,
-                    "#FFFFFF",
-                    0.06,
-                    "#FFFFFF",
-                    0.2,
-                    28,
-                )
-            )
-            for i in range(4):
-                yy = y0 - i * chart_h / 3
-                out.append(
-                    f'<path d="M{x0} {yy} H{x0 + chart_w}" stroke="#FFFFFF" stroke-opacity=".14" stroke-width="2"/>'
-                )
-            points = [
-                (
-                    x0 + j * chart_w / 7,
-                    y0 - chart_h * (0.18 + 0.58 * (0.5 + 0.5 * math.sin(j * 1.1))),
-                )
-                for j in range(8)
-            ]
+            if data and i < len(data):
+                values = [float(v) for v in data[i]]
+            else:
+                values = _illustrative_series(i)
+            points = _series_points(values, x, y, chart_w, chart_h)
             path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
             out.append(
-                f'<path d="{path}" fill="none" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>'
+                f'<path d="{path}" fill="none" stroke="{color}" stroke-width="9" '
+                'stroke-linecap="round" stroke-linejoin="round"/>'
             )
-            out.append(pill(cx, y0 + 105, str(prop.get("data_label", "ILUSTRASI"))))
+            out.append(_dots(points, color))
+        last_y = positions[-1][1] + chart_h
+        out.append(pill(cx, last_y + 60, str(prop.get("data_label", "ILUSTRASI"))))
+
+    elif template == "line_chart":
+        chart_w, chart_h = rw * 0.70, 420 if portrait else 360
+        x0 = cx - chart_w / 2
+        y0 = top + (735 if portrait else 445)
+        out.append(
+            rounded_card(
+                x0 - 35,
+                y0 - chart_h - 80,
+                chart_w + 70,
+                chart_h + 140,
+                "#FFFFFF",
+                0.06,
+                "#FFFFFF",
+                0.2,
+                28,
+            )
+        )
+        for i in range(4):
+            yy = y0 - i * chart_h / 3
+            out.append(
+                f'<path data-nodraw="1" d="M{x0} {yy} H{x0 + chart_w}" stroke="#FFFFFF" '
+                'stroke-opacity=".14" stroke-width="2"/>'
+            )
+        if prop.get("values"):
+            values = [float(v) for v in prop["values"]]
         else:
-            x0, y0 = cx - width * 0.34, main_y + 380
-            chart_w, chart_h = width * 0.68, 430 if portrait else 380
-            out.append(
-                rounded_card(
-                    x0 - 40,
-                    y0 - chart_h - 70,
-                    chart_w + 80,
-                    chart_h + 130,
-                    "#FFFFFF",
-                    0.05,
-                    "#FFFFFF",
-                    0.18,
-                    30,
-                )
+            values = [0.18 + 0.58 * (0.5 + 0.5 * math.sin(j * 1.1)) for j in range(8)]
+        lo, hi = min(values), max(values)
+        span = (hi - lo) or 1.0
+        n = len(values)
+        points = [
+            (x0 + j * chart_w / max(1, n - 1), y0 - chart_h * (0.1 + 0.8 * (v - lo) / span))
+            for j, v in enumerate(values)
+        ]
+        path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
+        out.append(
+            f'<path d="{path}" fill="none" stroke="{YELLOW}" stroke-width="10" '
+            'stroke-linecap="round" stroke-linejoin="round"/>'
+        )
+        out.append(pill(cx, y0 + 105, str(prop.get("data_label", "ILUSTRASI"))))
+
+    elif template == "scatter_regression":
+        chart_w, chart_h = rw * 0.68, 430 if portrait else 360
+        x0 = cx - chart_w / 2
+        y0 = top + (815 if portrait else 455)
+        out.append(
+            rounded_card(
+                x0 - 40,
+                y0 - chart_h - 70,
+                chart_w + 80,
+                chart_h + 130,
+                "#FFFFFF",
+                0.05,
+                "#FFFFFF",
+                0.18,
+                30,
             )
+        )
+        out.append(
+            f'<path d="M{x0} {y0 - chart_h} V{y0} H{x0 + chart_w}" fill="none" '
+            'stroke="#D8E0EF" stroke-opacity=".6" stroke-width="4"/>'
+        )
+        for i in range(28):
+            px = x0 + 35 + ((i * 73) % int(max(80, chart_w - 70)))
+            py = y0 - 25 - ((i * 47 + (i % 5) * 21) % int(max(90, chart_h - 50)))
             out.append(
-                f'<path d="M{x0} {y0 - chart_h} V{y0} H{x0 + chart_w}" fill="none" stroke="#D8E0EF" stroke-opacity=".6" stroke-width="4"/>'
+                f'<circle cx="{px}" cy="{py}" r="9" fill="{BLUE if i % 3 else YELLOW}" opacity=".9"/>'
             )
-            for i in range(28):
-                px = x0 + 35 + ((i * 73) % int(max(80, chart_w - 70)))
-                py = y0 - 25 - ((i * 47 + (i % 5) * 21) % int(max(90, chart_h - 50)))
-                out.append(
-                    f'<circle cx="{px}" cy="{py}" r="9" fill="{BLUE if i % 3 else YELLOW}" opacity=".9"/>'
-                )
-            out.append(
-                f'<path d="M{x0 + 15} {y0 - 65} L{x0 + chart_w - 15} {y0 - chart_h + 50}" stroke="{CORAL}" stroke-width="7" stroke-dasharray="15 12"/>'
-            )
-            out.append(pill(cx, y0 + 110, "ILUSTRASI • TANPA ANGKA KLAIM"))
+        out.append(
+            f'<path data-nodraw="1" d="M{x0 + 15} {y0 - 65} L{x0 + chart_w - 15} '
+            f'{y0 - chart_h + 50}" stroke="{CORAL}" stroke-width="7" stroke-dasharray="15 12"/>'
+        )
+        out.append(pill(cx, y0 + 105, "ILUSTRASI • TANPA ANGKA KLAIM"))
 
     elif template == "causal_diagram":
         nodes = prop.get(
@@ -373,7 +457,7 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
                 {"id": "y", "label": "Variabel B"},
             ],
         )
-        node_w = width * (0.40 if portrait else 0.26)
+        node_w = rw * (0.40 if portrait else 0.26)
         node_h = 150 if portrait else 132
         if portrait:
             node_pos = [
@@ -384,34 +468,25 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
         else:
             node_pos = [
                 (cx - node_w / 2, top + 30),
-                (cx - node_w - node_w * 0.35, top + 330),
+                (cx - node_w * 1.35, top + 330),
                 (cx + node_w * 0.35, top + 330),
             ]
-        # arrows first, behind the cards
-        for x, y in node_pos[1:]:
-            sx = cx
-            sy = node_pos[0][1] + node_h
-            ex = x + node_w / 2
-            ey = y
+        sx, sy = cx, node_pos[0][1] + node_h
+        for x, y in node_pos[1:]:  # arrows first, behind the cards
+            ex, ey = x + node_w / 2, y
             out.append(
-                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 20} {ex} {ey}" fill="none" stroke="{YELLOW}" stroke-width="8" stroke-linecap="round"/>'
+                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 20} {ex} {ey}" '
+                f'fill="none" stroke="{YELLOW}" stroke-width="8" stroke-linecap="round"/>'
             )
             out.append(
-                f'<path d="M{ex - 13} {ey - 17} L{ex} {ey} L{ex + 13} {ey - 17}" fill="none" stroke="{YELLOW}" stroke-width="7" stroke-linecap="round"/>'
+                f'<path d="M{ex - 13} {ey - 17} L{ex} {ey} L{ex + 13} {ey - 17}" fill="none" '
+                f'stroke="{YELLOW}" stroke-width="7" stroke-linecap="round"/>'
             )
         for idx, node in enumerate(nodes[:3]):
             x, y = node_pos[idx]
             out.append(
                 rounded_card(
-                    x,
-                    y,
-                    node_w,
-                    node_h,
-                    "#F4F1E8",
-                    0.98,
-                    YELLOW if idx == 0 else "#FFFFFF",
-                    0.85,
-                    26,
+                    x, y, node_w, node_h, PAPER, 0.98, YELLOW if idx == 0 else "#FFFFFF", 0.85, 26
                 )
             )
             out.append(
@@ -427,23 +502,25 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
         out.append(
             pill(
                 cx,
-                top + (950 if portrait else 560),
+                top + (950 if portrait else 530),
                 str(prop.get("data_label", "MODEL KONSEPTUAL")),
             )
         )
 
     elif template == "question_link":
         labels = prop.get("labels", ["A", "?", "B"])
-        y = main_y
-        box_w = width * 0.22 if portrait else width * 0.20
-        gap = width * 0.06
+        box_w = rw * 0.22 if portrait else min(rw * 0.20, 260)
+        gap = rw * 0.06
+        y = top + (435 if portrait else 150)
         start = cx - (box_w * 1.5 + gap)
         for i, label in enumerate(labels[:3]):
             x = start + i * (box_w + gap)
             fill = YELLOW if i == 1 else "#FFFFFF"
             text_fill = "#111D38" if i == 1 else PAPER
             out.append(
-                f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="32" fill="{fill}" fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="3"/>'
+                f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="32" fill="{fill}" '
+                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" '
+                'stroke-width="3"/>'
             )
             out.append(
                 svg_text(
@@ -469,24 +546,28 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
         out.append(
             svg_text(
                 cx,
-                y + box_w + 160,
+                y + box_w + (160 if portrait else 110),
                 str(prop.get("supporting_text", "Hubungan belum tentu sebab-akibat")),
                 size=34,
                 fill="#D8E0EF",
-                max_chars=34 if portrait else 65,
+                max_chars=34 if portrait else L.chars(65),
             )
         )
 
     elif template == "takeaway":
-        points = prop.get(
-            "points",
-            ["Pahami pola yang terlihat", "Uji penjelasan alternatif", "Cari bukti yang relevan"],
-        )
-        card_w = width * 0.78
-        card_h = 155 if portrait else 130
+        default_points = [
+            "Pahami pola yang terlihat",
+            "Uji penjelasan alternatif",
+            "Cari bukti yang relevan",
+        ]
+        points = prop.get("points", default_points)[:4]
+        card_w = rw * 0.78
         gap = 34
         y0 = top + 120
-        for i, point in enumerate(points[:4]):
+        limit = (L.nodi[1] - 30) if (portrait and L.nodi) else L.bottom
+        n = max(1, len(points))
+        card_h = min(155 if portrait else 130, (limit - y0 - gap * (n - 1)) / n)
+        for i, point in enumerate(points):
             y = y0 + i * (card_h + gap)
             out.append(
                 rounded_card(
@@ -520,9 +601,7 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
                     y + card_h / 2 + 12,
                     str(point),
                     size=30 if portrait else 27,
-                    fill=PAPER,
-                    anchor="middle",
-                    max_chars=32 if portrait else 56,
+                    max_chars=32 if portrait else L.chars(56),
                 )
             )
 
@@ -531,29 +610,29 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
         out.append(
             svg_text(
                 cx,
-                top + 300,
+                top + (300 if portrait else 230),
                 str(prop.get("headline", "Lanjutkan eksplorasi")),
                 size=78 if portrait else 72,
-                fill=PAPER,
-                max_chars=18 if portrait else 32,
+                max_chars=18 if portrait else L.chars(32),
             )
         )
         out.append(
             svg_text(
                 cx,
-                top + 540,
+                top + (540 if portrait else 360),
                 str(prop.get("supporting_text", "Ikuti F/N untuk belajar lebih dalam")),
                 size=32,
                 fill="#D8E0EF",
-                max_chars=32 if portrait else 70,
+                max_chars=32 if portrait else L.chars(70),
             )
         )
+        btn_y = top + (660 if portrait else 450)
         out.append(
-            f'<rect x="{cx - 210}" y="{top + 660}" width="420" height="78" rx="39" fill="{YELLOW}"/>'
+            f'<rect x="{cx - 210}" y="{btn_y}" width="420" height="78" rx="39" fill="{YELLOW}"/>'
         )
         out.append(
             svg_text(
-                cx, top + 712, "F/N  •  FOLLOW FOR MORE", size=24, fill="#111D38", max_chars=30
+                cx, btn_y + 52, "F/N  •  FOLLOW FOR MORE", size=24, fill="#111D38", max_chars=30
             )
         )
 
@@ -566,7 +645,7 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
                 top + 250,
                 scene.title,
                 size=76 if portrait else 72,
-                max_chars=18 if portrait else 34,
+                max_chars=18 if portrait else L.chars(34),
             )
         )
         out.append(
@@ -577,7 +656,7 @@ def template_art(scene: SceneSpec, width: int, height: int) -> str:
                 size=32,
                 fill="#D8E0EF",
                 weight=500,
-                max_chars=32 if portrait else 70,
+                max_chars=32 if portrait else L.chars(70),
             )
         )
 
@@ -606,23 +685,24 @@ def build_scene_html(
     bg = SCENE_BACKGROUNDS.get(scene.background, SCENE_BACKGROUNDS["navy"])
     portrait = height > width
     cx = width / 2
-    art = template_art(scene, width, height)
     brand_size = 28 if portrait else 24
     series = esc(spec.meta.series.upper())
     mascot_on = scene.character.mascot == "on"
+    layout = compute_layout(width, height, mascot_on)
+    art = template_art(scene, layout)
     nodi = ""
-    if mascot_on:
-        scale = 0.78 if portrait else 0.70
+    if layout.nodi:
+        nx, ny, scale = layout.nodi
         nodi = nodi_svg(
-            width - 335 if portrait else width - 390,
-            height * 0.39 if portrait else height * 0.24,
+            nx,
+            ny,
             scale,
             scene.character.mascot_pose or "rest",
             scene.character.mascot_outfit,
             scene.character.expression or "curious",
         )
-    caption_y = height - 560 if portrait else height - 290
-    cap_h = 190 if portrait else 150
+    caption_y = layout.caption_y
+    cap_h = layout.caption_h
     caps = []
     for idx, cap in enumerate(timing_scene.get("captions", [])):
         cap_text = str(cap["text"])
@@ -669,6 +749,9 @@ def build_scene_html(
       <text x="64" y="{height - 70}" fill="{PAPER}" opacity=".38" font-family="IBM Plex Mono, monospace" font-size="18" letter-spacing="2">BEYOND THE OBVIOUS.</text>
     </svg>
     <script>
+    // Scoped: Playwright set_content reuses the same window across scenes, so top-level
+    // const declarations would collide and silently keep the previous scene's render().
+    (() => {{
       const captions = {captions_json};
       const mascotEnabled = {str(mascot_on).lower()};
       const mouthShapes = {{smile:'M114 142 Q132 158 150 142', small:'M119 146 Q132 152 145 146', mid:'M116 140 Q132 162 148 140', wide:'M111 137 Q132 175 153 137', o:'M122 139 Q132 165 142 139'}};
@@ -678,10 +761,14 @@ def build_scene_html(
         art.setAttribute('opacity', smooth(t/0.48));
         art.setAttribute('transform', `translate(0 ${{(1-smooth(t/0.48))*28}})`);
         // Deterministic line draw-on for charts, arrows, and causal links.
-        art.querySelectorAll('path').forEach((p,i)=>{{
+        art.querySelectorAll('path:not([data-nodraw])').forEach((p,i)=>{{
           if(!p.dataset.pathLength){{try{{p.dataset.pathLength=p.getTotalLength()}}catch(e){{p.dataset.pathLength='0'}}}}
           const len=Number(p.dataset.pathLength||0);
           if(len>0){{p.style.strokeDasharray=`${{len}}`;p.style.strokeDashoffset=String(len*(1-smooth((t-.18-i*.025)/.72)))}}
+        }});
+        // Chart points appear as the line reaches them (reveal time is a pure function of t).
+        art.querySelectorAll('[data-reveal]').forEach((c)=>{{
+          c.setAttribute('opacity', smooth((t-Number(c.dataset.reveal))/0.1));
         }});
         const ml=document.getElementById('mascot-layer');
         if(mascotEnabled) {{
@@ -699,4 +786,5 @@ def build_scene_html(
         }});
       }};
       window.render(0);
+    }})();
     </script></body></html>'''

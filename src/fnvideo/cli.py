@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from fnvideo import __version__
 from fnvideo.audio.elevenlabs import ElevenLabsClient
 from fnvideo.audio.pipeline import generate_tts, preview_voice
-from fnvideo.audio.timing import caption_timings
+from fnvideo.audio.timing import build_estimated_timing
 from fnvideo.audio.voice_samples import inspect_voice_samples
 from fnvideo.config import load_settings
 from fnvideo.models.episode import EpisodeSpec
@@ -95,6 +95,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow a clearly marked test render from draft content",
     )
+    render.add_argument(
+        "--silent",
+        action="store_true",
+        help="Draft render with silent placeholder audio (no TTS needed); output final.silent-draft.mp4",
+    )
     build = sub.add_parser("build", help="Run TTS, preview, then final render")
     build.add_argument("spec", type=Path)
     build.add_argument(
@@ -107,7 +112,10 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _output_dir(spec: EpisodeSpec, settings_output: Path) -> Path:
-    return settings_output / spec.meta.id.rsplit("-", 1)[0] / spec.meta.format
+    """out/<episode>/<format>; a trailing -<format> suffix on the id is not repeated."""
+    suffix = f"-{spec.meta.format}"
+    episode = spec.meta.id.removesuffix(suffix) if spec.meta.id.endswith(suffix) else spec.meta.id
+    return settings_output / episode / spec.meta.format
 
 
 def _spec_or_exit(path: Path) -> EpisodeSpec:
@@ -133,39 +141,29 @@ def _print_doctor() -> int:
     return 0 if all(c.ok for c in checks) else 1
 
 
-def _write_estimated_preview_timing(spec: EpisodeSpec, out: Path) -> None:
-    cursor = 0.0
-    scenes = []
-    for index, scene in enumerate(spec.scenes):
-        duration = float(scene.duration_hint_seconds or max(4.0, len(scene.narration) / 13.0))
-        caps = caption_timings(scene, duration, None)
-        scenes.append(
-            {
-                "id": scene.id,
-                "title": scene.title,
-                "speech_duration_seconds": duration,
-                "duration_seconds": duration + (0.35 if index < len(spec.scenes) - 1 else 0.25),
-                "start_seconds": cursor,
-                "end_seconds": cursor + duration + (0.35 if index < len(spec.scenes) - 1 else 0.25),
-                "captions": caps,
-            }
-        )
-        cursor = scenes[-1]["end_seconds"]
+def _ensure_timing(
+    spec: EpisodeSpec, out: Path, gap_seconds: float, *, allow_estimate: bool
+) -> None:
+    """Make sure out/timing.json matches the spec.
+
+    Estimated (preview-only) timing is always regenerated so edits to the spec show up.
+    Real TTS timing is kept, but must cover exactly the spec's scenes.
+    """
+    path = out / "timing.json"
+    existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    if existing and not existing.get("preview_timing_only"):
+        ids = [s["id"] for s in existing.get("scenes", [])]
+        if ids != [s.id for s in spec.scenes]:
+            raise SystemExit(
+                f"{path} was generated for scenes {ids}, but the spec now has "
+                f"{[s.id for s in spec.scenes]}. Re-run `fnvideo tts`."
+            )
+        return
+    if not allow_estimate:
+        raise SystemExit(f"Missing narration timing in {path}. Run `fnvideo tts` or use --silent.")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "timing.json").write_text(
-        json.dumps(
-            {
-                "episode_id": spec.meta.id,
-                "fps": spec.meta.fps,
-                "scene_duration_seconds": cursor,
-                "scenes": scenes,
-                "rms_envelope": [],
-                "mouth_shapes": [],
-                "preview_timing_only": True,
-            },
-            indent=2,
-            ensure_ascii=False,
-        ),
+    path.write_text(
+        json.dumps(build_estimated_timing(spec, gap_seconds), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
@@ -274,8 +272,7 @@ def main() -> None:
             print(generate_tts(spec, out, settings, allow_draft=args.allow_draft, force=args.force))
             return
         if args.command == "preview":
-            if not (out / "timing.json").exists():
-                _write_estimated_preview_timing(spec, out)
+            _ensure_timing(spec, out, settings.audio_gap_seconds, allow_estimate=True)
             print(
                 json.dumps(
                     render_episode(spec, out, settings, preview_only=True),
@@ -289,7 +286,11 @@ def main() -> None:
                 raise SystemExit(
                     "Editorial status is not approved. Review the script and set editorial_status: approved, or use --allow-draft for testing."
                 )
-            print(json.dumps(render_episode(spec, out, settings), indent=2, ensure_ascii=False))
+            if args.silent:
+                print("NOTE: silent draft render — placeholder audio, estimated timing if no TTS.")
+            _ensure_timing(spec, out, settings.audio_gap_seconds, allow_estimate=args.silent)
+            report = render_episode(spec, out, settings, silent=args.silent)
+            print(json.dumps(report, indent=2, ensure_ascii=False))
             return
         if args.command == "build":
             generate_tts(spec, out, settings, allow_draft=args.allow_draft, force=args.force_tts)

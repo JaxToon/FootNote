@@ -8,10 +8,20 @@ from typing import Any
 
 import numpy as np
 
+CAPTION_LEAD_SECONDS = 0.08
 
-def _alignment_phrase(
-    alignment: dict[str, Any] | None, transcript: str, phrase: str
-) -> tuple[float, float] | None:
+
+def _find_from(haystack: str, needle: str, cursor: int) -> int:
+    return haystack.casefold().find(needle.casefold(), cursor)
+
+
+def _aligned_windows(
+    alignment: dict[str, Any] | None, phrases: list[str]
+) -> list[tuple[float, float]] | None:
+    """Locate every caption phrase, in order, in provider character alignment.
+
+    Returns None unless *all* phrases match, so a scene is never half exact, half guessed.
+    """
     if not alignment:
         return None
     chars = alignment.get("characters", [])
@@ -20,69 +30,132 @@ def _alignment_phrase(
     if not chars or len(chars) != len(starts) or len(chars) != len(ends):
         return None
     joined = "".join(chars)
-    idx = joined.casefold().find(phrase.casefold())
-    if idx < 0 or idx + len(phrase) > len(starts):
+    if len(joined) != len(chars):  # multi-char entries would break index mapping
         return None
-    valid_starts = [float(x) for x in starts[idx : idx + len(phrase)] if x is not None]
-    valid_ends = [float(x) for x in ends[idx : idx + len(phrase)] if x is not None]
-    if not valid_starts or not valid_ends:
-        return None
-    return min(valid_starts), max(valid_ends)
-
-
-def _estimate_phrase_windows(
-    transcript: str, phrases: list[str], duration: float
-) -> list[dict[str, Any]]:
-    total_chars = max(1, len(transcript))
-    results: list[dict[str, Any]] = []
-    cursor = 0.0
+    cursor = 0
+    windows: list[tuple[float, float]] = []
     for phrase in phrases:
-        idx = transcript.casefold().find(phrase.casefold())
-        if idx >= 0:
-            start = duration * idx / total_chars
-            end = duration * min(total_chars, idx + len(phrase)) / total_chars
-        else:
-            start = cursor
-            end = min(duration, start + duration / max(1, len(phrases)))
-        start = max(cursor, start)
-        end = max(start + 0.12, end)
-        results.append(
-            {"start": min(start, duration), "end": min(end, duration), "estimated": True}
-        )
-        cursor = min(end, duration)
-    return results
+        idx = _find_from(joined, phrase, cursor)
+        if idx < 0:
+            return None
+        span = range(idx, idx + len(phrase))
+        valid_starts = [float(starts[i]) for i in span if starts[i] is not None]
+        valid_ends = [float(ends[i]) for i in span if ends[i] is not None]
+        if not valid_starts or not valid_ends:
+            return None
+        windows.append((min(valid_starts), max(valid_ends)))
+        cursor = idx + len(phrase)
+    return windows
+
+
+def _estimated_windows(
+    transcript: str, phrases: list[str], duration: float
+) -> list[tuple[float, float]]:
+    """Estimate caption windows without provider timing.
+
+    If every phrase occurs verbatim and in order, place it proportionally by character
+    position. Otherwise captions are paraphrases: tile the speech duration in order,
+    weighted by caption length.
+    """
+    total = max(1, len(transcript))
+    cursor = 0
+    positions: list[tuple[int, int]] = []
+    for phrase in phrases:
+        idx = _find_from(transcript, phrase, cursor)
+        if idx < 0:
+            break
+        positions.append((idx, idx + len(phrase)))
+        cursor = idx + len(phrase)
+    if len(positions) == len(phrases):
+        return [(duration * a / total, duration * b / total) for a, b in positions]
+    weights = [max(1, len(p)) for p in phrases]
+    scale = duration / sum(weights)
+    windows: list[tuple[float, float]] = []
+    t = 0.0
+    for w in weights:
+        windows.append((t, t + w * scale))
+        t += w * scale
+    return windows
 
 
 def caption_timings(
     scene: Any, duration: float, alignment: dict[str, Any] | None
 ) -> list[dict[str, Any]]:
+    """Scene-relative caption windows within [0, duration] (speech duration).
+
+    Each caption is held until the next one starts, so there are no blank gaps while the
+    narrator is still speaking; the last caption holds until the end of speech.
+    """
     phrases = [c.text for c in scene.captions]
-    windows: list[dict[str, Any]] = []
-    for phrase in phrases:
-        match = _alignment_phrase(alignment, scene.narration, phrase)
-        if match:
-            windows.append({"start": match[0], "end": match[1], "estimated": False})
-        else:
-            windows = _estimate_phrase_windows(scene.narration, phrases, duration)
-            break
-    # Slightly expand short captions for readability, but keep scene boundaries.
-    for i, window in enumerate(windows):
-        window["start"] = max(0.0, float(window["start"]) - 0.08)
-        window["end"] = min(
-            duration, max(float(window["end"]) + 0.18, float(window["start"]) + 0.45)
+    exact = _aligned_windows(alignment, phrases)
+    raw = exact if exact is not None else _estimated_windows(scene.narration, phrases, duration)
+    quality = "provider_alignment" if exact is not None else "estimated"
+    starts = [max(0.0, min(duration, s - CAPTION_LEAD_SECONDS)) for s, _ in raw]
+    result: list[dict[str, Any]] = []
+    for i, caption in enumerate(scene.captions):
+        start = starts[i]
+        # Contiguous: hand over exactly when the next caption starts (no overlap, no gap).
+        end = starts[i + 1] if i + 1 < len(raw) else max(duration, raw[i][1])
+        result.append(
+            {
+                "text": caption.text,
+                "highlight": caption.highlight,
+                "start": round(start, 4),
+                "end": round(end, 4),
+                "timing_quality": quality,
+            }
         )
-        if i + 1 < len(windows):
-            window["end"] = min(float(window["end"]), float(windows[i + 1]["start"]) + 0.02)
-    return [
-        {
-            "text": caption.text,
-            "highlight": caption.highlight,
-            "start": windows[i]["start"],
-            "end": windows[i]["end"],
-            "timing_quality": "estimated" if windows[i]["estimated"] else "provider_alignment",
-        }
-        for i, caption in enumerate(scene.captions)
-    ]
+    return result
+
+
+def estimate_scene_seconds(scene: Any) -> float:
+    """Speech-duration estimate for previews (~13 characters/second Indonesian narration)."""
+    return float(scene.duration_hint_seconds or max(4.0, len(scene.narration) / 13.0))
+
+
+def build_estimated_timing(
+    spec: Any, gap_seconds: float, tail_seconds: float = 0.25
+) -> dict[str, Any]:
+    """Timing manifest from duration hints only; used for previews and silent test renders."""
+    cursor = 0.0
+    scenes: list[dict[str, Any]] = []
+    for index, scene in enumerate(spec.scenes):
+        speech = estimate_scene_seconds(scene)
+        pad = gap_seconds if index < len(spec.scenes) - 1 else tail_seconds
+        scenes.append(
+            {
+                "id": scene.id,
+                "title": scene.title,
+                "speech_duration_seconds": speech,
+                "duration_seconds": speech + pad,
+                "start_seconds": cursor,
+                "end_seconds": cursor + speech + pad,
+                "captions": caption_timings(scene, speech, None),
+            }
+        )
+        cursor += speech + pad
+    return {
+        "episode_id": spec.meta.id,
+        "fps": spec.meta.fps,
+        "scene_duration_seconds": cursor,
+        "gap_seconds": gap_seconds,
+        "timing_source": "estimated from duration hints; no audio",
+        "scenes": scenes,
+        "rms_envelope": [],
+        "mouth_shapes": [],
+        "preview_timing_only": True,
+    }
+
+
+def scene_frame_range(start_seconds: float, end_seconds: float, fps: int) -> tuple[int, int]:
+    """Global [first, last) frame indices for a scene.
+
+    Frames come from cumulative boundaries so rounding never drifts across scenes:
+    concatenated scene frame counts always sum to round(total * fps).
+    """
+    first = int(round(start_seconds * fps))
+    last = max(first + 1, int(round(end_seconds * fps)))
+    return first, last
 
 
 def probe_duration(path: Path) -> float:
@@ -116,30 +189,50 @@ def build_rms_envelope(wav_path: Path, fps: int) -> list[float]:
     return values
 
 
+def mouth_shape_for(amp: float) -> str:
+    if amp < 0.05:
+        return "smile"
+    if amp < 0.14:
+        return "small"
+    if amp < 0.28:
+        return "mid"
+    return "wide"
+
+
 def map_mouth_shapes(envelope: list[float], minimum_hold_frames: int = 2) -> list[str]:
-    raw: list[str] = []
+    """Map a per-frame RMS envelope to mouth shapes with a deterministic minimum hold.
+
+    Runs shorter than *minimum_hold_frames* are absorbed into the previous run (or the next
+    run when at the start), so no shape is shown for fewer frames than the hold unless the
+    whole track is shorter than the hold.
+    """
+    runs: list[list[Any]] = []
     for amp in envelope:
-        if amp < 0.05:
-            shape = "smile"
-        elif amp < 0.14:
-            shape = "small"
-        elif amp < 0.28:
-            shape = "mid"
+        shape = mouth_shape_for(amp)
+        if runs and runs[-1][0] == shape:
+            runs[-1][1] += 1
         else:
-            shape = "wide"
-        raw.append(shape)
-    # Deterministic minimum-hold pass to avoid one-frame flicker.
+            runs.append([shape, 1])
+    merged: list[list[Any]] = []
+    carry = 0
+    for shape, count in runs:
+        count += carry
+        carry = 0
+        if count < minimum_hold_frames:
+            if merged:
+                merged[-1][1] += count
+            else:
+                carry = count
+            continue
+        if merged and merged[-1][0] == shape:
+            merged[-1][1] += count
+        else:
+            merged.append([shape, count])
+    if carry:  # whole track shorter than the hold: keep a single stable shape
+        merged.append([runs[0][0], carry])
     out: list[str] = []
-    i = 0
-    while i < len(raw):
-        j = i + 1
-        while j < len(raw) and raw[j] == raw[i]:
-            j += 1
-        run = raw[i:j]
-        if len(run) < minimum_hold_frames and out:
-            run = [out[-1]] * len(run)
-        out.extend(run)
-        i = j
+    for shape, count in merged:
+        out.extend([shape] * count)
     return out
 
 
