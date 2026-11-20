@@ -6,7 +6,7 @@ import io
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -24,12 +24,61 @@ SCENE_BACKGROUNDS = {
     "paper": "#F4F1E8",
     "deep_blue": "#243D57",
     "coral": "#E56B50",
+    "yellow": "#F3D65B",
 }
+NAVY = "#111D38"
 YELLOW = "#F3D65B"
 PAPER = "#F4F1E8"
 CORAL = "#E56B50"
 TEAL = "#6CB7A6"
 BLUE = "#89B7D7"
+
+
+@dataclass(frozen=True)
+class Theme:
+    """Colour roles for one background. Light = editorial paper look (navy ink, like the
+    NODI concept board); dark = contrast scenes."""
+
+    name: str
+    ink: str  # main text and lines on the background
+    muted: str  # secondary text
+    accent: str  # rules, drawn symbols
+    line: str  # connectors / arrows
+    highlight: str  # caption highlighter swipe
+    card_fill: str
+    card_opacity: float
+    card_stroke: str
+    card_stroke_opacity: float
+    card_stroke_width: float
+    label_fill: str  # label cards under icons
+    caption_stroke: str | None
+    blobs: tuple[str, ...]
+    blob_opacity: float
+    grain_opacity: float
+
+
+THEME_DARK = Theme(
+    "dark", PAPER_HEX := "#F4F1E8", "#D8E0EF", "#F3D65B", "#F3D65B", "#F3D65B",
+    "#FFFFFF", 0.08, "#FFFFFF", 0.22, 2, PAPER_HEX, "#0B1428",
+    ("#2B4A6F", "#5142A0"), 0.45, 0.30,
+)  # fmt: skip
+THEME_PAPER = Theme(
+    "light", "#111D38", "#4C5A75", "#E56B50", "#111D38", "#F3D65B",
+    "#FFFFFF", 0.75, "#111D38", 0.9, 5, "#FFFFFF", None,
+    ("#F3D65B", "#FFFFFF"), 0.30, 0.22,
+)  # fmt: skip
+THEME_YELLOW = Theme(
+    "light", "#111D38", "#3A3A2A", "#E56B50", "#111D38", "#F4F1E8",
+    "#FFFFFF", 0.6, "#111D38", 0.9, 5, "#FFFFFF", None,
+    ("#FFFFFF", "#F7E089"), 0.30, 0.22,
+)  # fmt: skip
+# Coral is a dark (light-text) scene, but its colour fields must stay warm.
+THEME_CORAL = replace(THEME_DARK, blobs=("#F3D65B", "#F4F1E8"), blob_opacity=0.18)
+THEMES = {"paper": THEME_PAPER, "yellow": THEME_YELLOW, "coral": THEME_CORAL}
+
+
+def theme_for(background: str) -> Theme:
+    return THEMES.get(background, THEME_DARK)
 
 
 def esc(value: Any) -> str:
@@ -60,7 +109,7 @@ def svg_text(
     text: str,
     *,
     size: int = 48,
-    fill: str = PAPER,
+    fill: str = "currentColor",
     weight: int = 700,
     anchor: str = "middle",
     family: str = "Inter, sans-serif",
@@ -83,7 +132,7 @@ def svg_text(
         return node
     # One path per drawn symbol; render(t) positions it from the placeholder's glyph box.
     paths = "".join(
-        f'<path data-sym-path="1" data-nodraw="1" fill="{YELLOW}"/>' for _ in range(count)
+        '<path data-sym-path="1" data-nodraw="1" class="fn-accent"/>' for _ in range(count)
     )
     return f'<g data-sym-size="{size}">{node}{paths}</g>'
 
@@ -111,11 +160,19 @@ def rounded_card(
     stroke: str = "#FFFFFF",
     stroke_opacity: float = 0.18,
     radius: int = 28,
+    stroke_width: float = 2,
 ) -> str:
     return (
-        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{radius}" '
-        f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}" stroke-opacity="{stroke_opacity}" stroke-width="2"/>'
+        f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{radius}" '
+        f'fill="{fill}" fill-opacity="{opacity}" stroke="{stroke}" stroke-opacity="{stroke_opacity}" '
+        f'stroke-width="{stroke_width}"/>'
     )
+
+
+def theme_card(th: Theme, x: float, y: float, w: float, h: float, *, radius: int = 32,
+               accent: str | None = None) -> str:  # fmt: skip
+    return rounded_card(x, y, w, h, th.card_fill, th.card_opacity, accent or th.card_stroke,
+                        th.card_stroke_opacity, radius, th.card_stroke_width)  # fmt: skip
 
 
 NODI_RIG_JS = (Path(__file__).parent / "assets" / "nodi_rig.js").read_text(encoding="utf-8")
@@ -176,6 +233,7 @@ class Layout:
     caption_base: float  # baseline of the (last) caption line
     type: dict[str, int]
     nodi: tuple[float, float, float] | None  # x, y, scale
+    th: Theme = THEME_DARK
 
     @property
     def cx(self) -> float:
@@ -211,7 +269,12 @@ TYPE_LANDSCAPE = {
 }  # fmt: skip
 
 
-def compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
+def compute_layout(width: int, height: int, mascot_on: bool, background: str = "navy") -> Layout:
+    """Layout plus the theme for *background* (light paper/yellow or dark)."""
+    return replace(_compute_layout(width, height, mascot_on), th=theme_for(background))
+
+
+def _compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
     portrait = height > width
     if portrait:
         # Content y=200..1450; one-line captions sit on a baseline just above the
@@ -331,14 +394,25 @@ def icon(name: str, cx: float, cy: float, size: float) -> str:
 
 
 def label_card(
-    cx: float, y: float, label: str, width: float, size: int, accent: str, *, min_h: float = 0
+    cx: float,
+    y: float,
+    label: str,
+    width: float,
+    size: int,
+    accent: str,
+    *,
+    min_h: float = 0,
+    th: Theme = THEME_DARK,
 ) -> tuple[str, float]:
     """Paper label card (wrapping text) whose top edge is at y; returns (svg, bottom)."""
     max_chars = max(6, int((width - 50) / (size * 0.56)))
     lines = split_lines(label, max_chars)
     h = max(min_h, len(lines) * size * 1.12 + size * 1.1)
     text_y = y + h / 2 - (len(lines) - 1) * size * 0.56 + size * 0.36
-    svg = rounded_card(cx - width / 2, y, width, h, PAPER, 0.98, accent, 0.9, 28) + svg_text(
+    stroke = accent if th.name == "dark" else th.card_stroke
+    svg = rounded_card(
+        cx - width / 2, y, width, h, th.label_fill, 0.98, stroke, 0.9, 28, th.card_stroke_width
+    ) + svg_text(  # fmt: skip
         cx, text_y, label, size=size, fill="#111D38", max_chars=max_chars, line_gap=size * 1.12
     )
     return svg, y + h
@@ -378,7 +452,8 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
     prop = scene.props
     template = scene.template
     els = Elements()
-    muted = "#D8E0EF"
+    th = L.th
+    muted = th.muted
 
     def headline_stack(
         head: str, sub: str | None, y: float, *, size: int | None = None, reserve: float = 0
@@ -448,7 +523,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         rule_y = end + 50
         els.add(
             "rule",
-            f'<path d="M{cx - 120} {rule_y} H{cx + 120}" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>',
+            f'<path d="M{cx - 120} {rule_y} H{cx + 120}" stroke="{th.accent}" stroke-width="12" stroke-linecap="round"/>',
             "draw",
         )
 
@@ -483,92 +558,169 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         els.add("label", pill(cx, y + card_h + 90, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
 
     elif template == "paired_trend":
+        # One plot, two lines: "moving together" reads at a glance. Each line's icon rides
+        # its leading point while it draws. Series are normalised separately (illustrative).
         labels = prop.get("variables", ["Variabel A", "Variabel B"])
         icons = prop.get("icons", [])
         data = prop.get("series")
+        colors = [YELLOW, TEAL] if th.name == "dark" else [CORAL, TEAL]
         label_space = T["label"] * 3
-        if portrait:
-            gap = 40
-            chart_w = usable
-            chart_h = (bottom - top - label_space - gap) / 2
-            positions = [(L.left, top), (L.left, top + chart_h + gap)]
-        else:
-            gap = 48
-            chart_w = (usable - gap) / 2
-            chart_h = bottom - top - label_space
-            positions = [(L.left, top), (L.left + chart_w + gap, top)]
-        tick = int(T["node"] * 0.72)
+        legend_row = T["node"] * 2.2
+        tick = int(T["node"] * 0.8)
+        x0, x1 = L.left + 30, L.right - 20
+        legend_top = top + 10
+        py0 = legend_top + 2 * legend_row + 90  # plot top (room for riding icons)
+        py1 = bottom - label_space - tick * 2.2  # x axis
+        head = T["node"] * 3.6  # riding icon size
+        els.add(
+            "axes",
+            f'<path d="M{x0} {py0 - 40} V{py1} H{x1}" fill="none" stroke="{th.ink}" '
+            'stroke-opacity=".75" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>'
+            + "".join(
+                f'<path data-nodraw="1" d="M{x0 + 12} {py1 - k * (py1 - py0) / 3:.1f} H{x1}" '
+                f'stroke="{th.ink}" stroke-opacity=".10" stroke-width="3" stroke-dasharray="4 14" '
+                'stroke-linecap="round"/>'
+                for k in (1, 2, 3)
+            ),
+            "draw",
+            seq=-1,
+        )
         for i, label in enumerate(labels[:2]):
-            x, y = positions[i]
-            color = YELLOW if i == 0 else TEAL
+            color = colors[i]
             values = (
                 [float(v) for v in data[i]] if data and i < len(data) else _illustrative_series(i)
             )
-            x_labels = prop.get("x_labels") or (
-                DEFAULT_MONTHS if not data and len(values) == 6 else []
-            )
-            icon_size = T["node"] * 3.2 if i < len(icons) else 0
-            head_x = x + 36 + (icon_size + 20 if icon_size else 0)
-            title_svg, title_end = text_block(
-                head_x,
-                y + 36 + T["node"] * 0.9,
-                str(label),
-                size=T["node"],
-                anchor="start",
-                max_chars=L.chars(T["node"], x + chart_w - head_x - 36),
-            )
-            parts = [rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 34)]
-            if icon_size:
-                parts.append(
-                    icon(icons[i], x + 36 + icon_size / 2, y + 30 + icon_size / 2, icon_size)
-                )
-            parts.append(title_svg)
-            # plot box with axes; month labels under the x axis
-            px0, px1 = x + 70, x + chart_w - 50
-            py0 = max(title_end, y + 30 + icon_size) + 40
-            py1 = y + chart_h - (tick * 2.4 if x_labels else 50)
-            parts.append(
-                f'<path data-nodraw="1" d="M{px0} {py0} V{py1} H{px1}" fill="none" stroke="{PAPER}" '
-                'stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/>'
-            )
             n = len(values)
+            x_labels = prop.get("x_labels") or (DEFAULT_MONTHS if not data and n == 6 else [])
             lo, hi = min(values), max(values)
             span = (hi - lo) or 1.0
+            band_lo, band_hi = (
+                (0.08, 0.62) if i == 0 else (0.30, 0.92)
+            )  # offset so lines don't overlap
             points = [
                 (
-                    px0 + 30 + j * (px1 - px0 - 60) / max(1, n - 1),
-                    py1 - 24 - (v - lo) / span * (py1 - py0 - 48),
+                    x0 + 70 + j * (x1 - x0 - 150) / max(1, n - 1),
+                    py1 - (band_lo + (v - lo) / span * (band_hi - band_lo)) * (py1 - py0),
                 )
                 for j, v in enumerate(values)
             ]
-            for j, xl in enumerate(x_labels[:n]):
-                parts.append(
+            path = "M" + " L".join(f"{qx:.1f} {qy:.1f}" for qx, qy in points)
+            ly = legend_top + i * legend_row + legend_row / 2
+            parts = [
+                # legend row: swatch line + label
+                f'<path data-nodraw="1" d="M{x0 + 10} {ly} H{x0 + 90}" stroke="{color}" stroke-width="16" '
+                'stroke-linecap="round"/>',
+                svg_text(
+                    x0 + 120,
+                    ly + T["node"] * 0.36,
+                    str(label),
+                    size=T["node"],
+                    anchor="start",
+                    weight=700,
+                    max_chars=L.chars(T["node"], x1 - x0 - 120),
+                ),
+            ]
+            if i == 0:
+                parts += [
                     svg_text(
                         points[j][0],
-                        py1 + tick * 1.5,
+                        py1 + tick * 1.6,
                         str(xl),
                         size=tick,
                         fill=muted,
                         weight=600,
                         max_chars=8,
                     )
-                )
-            path = "M" + " L".join(f"{qx:.1f} {qy:.1f}" for qx, qy in points)
+                    for j, xl in enumerate(x_labels[:n])
+                ]
+            outline = NAVY if th.name == "light" else "#0B1428"
             parts.append(
-                f'<path data-series="1" d="{path}" fill="none" stroke="{color}" stroke-width="12" '
+                f'<path data-series="1" d="{path}" fill="none" stroke="{outline}" stroke-width="26" '
+                'stroke-linecap="round" stroke-linejoin="round" stroke-opacity=".9"/>'
+            )
+            parts.append(
+                f'<path d="{path}" fill="none" stroke="{color}" stroke-width="14" '
                 'stroke-linecap="round" stroke-linejoin="round"/>'
             )
-            parts.append(_dots(points, color, r=11, pulse_last=False))
-            # the line's leading point travels along the path while it draws, then pulses
-            parts.append(
-                f'<circle data-head="1" cx="{points[0][0]:.1f}" cy="{points[0][1]:.1f}" r="19" '
-                f'fill="{color}" stroke="{PAPER}" stroke-width="6"/>'
-            )
-            els.add(f"chart-{i}", "".join(parts), "draw")
+            if i < len(icons):
+                parts.append(
+                    f'<g data-head="1" data-lift="{head * 0.62:.1f}">{icon(str(icons[i]), 0, 0, head)}</g>'
+                )
+            else:
+                parts.append(
+                    f'<circle data-head="1" cx="{points[0][0]:.1f}" cy="{points[0][1]:.1f}" r="20" '
+                    f'fill="{color}" stroke="{outline}" stroke-width="7"/>'
+                )
+            els.add(f"chart-{i}", "".join(parts), "draw")  # fmt: skip
         els.add(
             "label",
             pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
         )
+
+    elif template == "compare":
+        # Two concepts as icon + term + one-line meaning (no text boxes).
+        items = prop.get("items", [])[:2]
+        vs_h = T["label"] * 2.6
+        n = max(1, len(items))
+        if portrait:
+            slot = (bottom - top - vs_h) / n
+            for i, item in enumerate(items):
+                y = top + i * (slot + vs_h)
+                size = min(slot * 0.56, 360)
+                term_y = y + size + T["term"] * 0.95
+                idle = "bob" if i == 0 else "sway"  # icons keep living after they land
+                body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), cx, y + size / 2 + 10, size)}</g>'
+                body += svg_text(
+                    cx,
+                    term_y,
+                    str(item.get("term", "")),
+                    size=T["term"],
+                    weight=700,
+                    family=FONT_DISPLAY,
+                    max_chars=L.chars(T["term"], em=0.64),
+                )
+                d_svg, _ = text_block(
+                    cx,
+                    term_y + T["body"] * 1.5,
+                    str(item.get("definition", "")),
+                    size=T["body"],
+                    fill=muted,
+                    weight=600,
+                    max_chars=L.chars(T["body"], usable * 0.92),
+                )
+                els.add(f"side-{i}", body + d_svg, "pop" if i == 0 else "slide")
+            vy = top + slot + vs_h / 2
+        else:
+            col = (usable - 120) / n
+            for i, item in enumerate(items):
+                ccx = L.left + col / 2 + i * (col + 120)
+                size = min(col * 0.42, (bottom - top) * 0.42)
+                term_y = top + size + T["term"]
+                idle = "bob" if i == 0 else "sway"
+                body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), ccx, top + size / 2, size)}</g>'
+                body += svg_text(
+                    ccx,
+                    term_y,
+                    str(item.get("term", "")),
+                    size=T["term"],
+                    weight=700,
+                    family=FONT_DISPLAY,
+                    max_chars=L.chars(T["term"], col, 0.64),
+                )
+                d_svg, _ = text_block(
+                    ccx,
+                    term_y + T["body"] * 1.5,
+                    str(item.get("definition", "")),
+                    size=T["body"],
+                    fill=muted,
+                    weight=600,
+                    max_chars=L.chars(T["body"], col),
+                )
+                els.add(f"side-{i}", body + d_svg, "pop" if i == 0 else "slide")
+            vy = (top + bottom) / 2
+        if len(items) == 2:
+            els.add("vs", pill(cx, vy, str(prop.get("divider", "VS")), T["label"], fill=th.accent,
+                               text_fill=PAPER), seq=0.5)  # fmt: skip
 
     elif template == "causal_diagram":
         nodes = prop.get(
@@ -606,12 +758,12 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             if with_icons:
                 ico = icon(str(node["icon"]), ncx, ncy, size) if node.get("icon") else ""
                 card_svg, card_bottom = label_card(
-                    ncx, ncy + size / 2 + 18, label, node_w, T["node"], accent
+                    ncx, ncy + size / 2 + 18, label, node_w, T["node"], accent, th=th
                 )
                 bodies.append((ico + card_svg, ncy - size / 2, card_bottom))
             else:
                 card_svg, card_bottom = label_card(
-                    ncx, ncy - size / 2, label, node_w, T["node"], accent, min_h=size
+                    ncx, ncy - size / 2, label, node_w, T["node"], accent, min_h=size, th=th
                 )
                 bodies.append((card_svg, ncy - size / 2, card_bottom))
         sx, sy = cx, bodies[0][2] + 14
@@ -621,9 +773,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             els.add(
                 f"arrow-{k}",
                 f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 30} {ex} {ey}" '
-                f'fill="none" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>'
+                f'fill="none" stroke="{th.line}" stroke-width="10" stroke-linecap="round"/>'
                 f'<path d="M{ex - 18} {ey - 22} L{ex} {ey} L{ex + 18} {ey - 22}" fill="none" '
-                f'stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
+                f'stroke="{th.line}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
                 "draw",
                 seq=2 * k - 1,
             )
@@ -647,7 +799,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         ][:3]
         sup_text = prop.get("supporting_text")
         sup = T["supporting"]
-        arrow_h, label_h = 96, T["node"] * 1.7
+        arrow_h, label_h = 110, T["node"] * 1.7
         sup_h = sup * 2.6 if sup_text else 0
         n = len(items)
         labels_h = sum(label_h for it in items if it.get("label") and it.get("icon"))
@@ -657,19 +809,17 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         for i, item in enumerate(items):
             x = cx - box / 2
             fill = YELLOW if i == 1 else "#FFFFFF"
-            body = (
-                f'<rect x="{x:.1f}" y="{y:.1f}" width="{box:.1f}" height="{box:.1f}" rx="44" fill="{fill}" '
-                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="4"/>'
-            )
-            if item.get("icon"):
-                body += icon(str(item["icon"]), cx, y + box / 2, box * 0.76)
+            body = ""
+            if item.get("icon"):  # icons stand on their own: no box behind them
+                body += icon(str(item["icon"]), cx, y + box / 2, box * (1.0 if i == 1 else 1.08))
             else:
+                body += theme_card(th, x, y, box, box, radius=44, accent=fill if i == 1 else None)
                 body += svg_text(
                     cx,
                     y + box / 2 + T["headline"] * 0.3,
                     str(item.get("label", "")),
                     size=int(T["headline"] * 0.8),
-                    fill="#111D38" if i == 1 else PAPER,
+                    fill=th.ink,
                     weight=700,
                     family=FONT_DISPLAY,
                     max_chars=8,
@@ -689,9 +839,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                 a0, a1 = y + 16, y + arrow_h - 16
                 els.add(
                     f"link-{i}",
-                    f'<path d="M{cx} {a0} V{a1}" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>'
-                    f'<path d="M{cx - 20} {a1 - 22} L{cx} {a1} L{cx + 20} {a1 - 22}" fill="none" '
-                    f'stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
+                    f'<path d="M{cx} {a0} V{a1}" stroke="{th.line}" stroke-width="12" stroke-linecap="round"/>'
+                    f'<path d="M{cx - 24} {a1 - 26} L{cx} {a1} L{cx + 24} {a1 - 26}" fill="none" '
+                    f'stroke="{th.line}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>',
                     "draw",
                 )
                 y += arrow_h
@@ -718,7 +868,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         for i, item in enumerate(items):
             x = L.left + i * (box_w + gap)
             fill = YELLOW if i == 1 else "#FFFFFF"
-            text_fill = "#111D38" if i == 1 else PAPER
+            text_fill = NAVY if i == 1 else th.ink
             body = (
                 f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="40" fill="{fill}" '
                 f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="4"/>'
@@ -777,7 +927,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         chart_w, chart_h = x1 - x0, y0 - y_top
         grid = "".join(
             f'<path data-nodraw="1" d="M{x0} {y0 - i * chart_h / 3:.1f} H{x1}" '
-            'stroke="#FFFFFF" stroke-opacity=".14" stroke-width="2"/>'
+            f'stroke="{th.ink}" stroke-opacity=".14" stroke-width="2"/>'
             for i in range(4)
         )
         if prop.get("values"):
@@ -794,9 +944,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
         els.add(
             "chart",
-            rounded_card(
-                L.left, top, usable, bottom - label_space - top, "#FFFFFF", 0.06, "#FFFFFF", 0.2, 34
-            )
+            theme_card(th, L.left, top, usable, bottom - label_space - top, radius=34)
             + grid
             + f'<path d="{path}" fill="none" stroke="{YELLOW}" stroke-width="12" '
             'stroke-linecap="round" stroke-linejoin="round"/>' + _dots(points, YELLOW, r=13),
@@ -820,18 +968,8 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         )
         els.add(
             "chart",
-            rounded_card(
-                L.left,
-                top,
-                usable,
-                bottom - label_space - top,
-                "#FFFFFF",
-                0.05,
-                "#FFFFFF",
-                0.18,
-                34,
-            )
-            + f'<path d="M{x0} {y_top} V{y0} H{x1}" fill="none" stroke="#D8E0EF" stroke-opacity=".6" stroke-width="4"/>'
+            theme_card(th, L.left, top, usable, bottom - label_space - top, radius=34)
+            + f'<path d="M{x0} {y_top} V{y0} H{x1}" fill="none" stroke="{th.ink}" stroke-opacity=".6" stroke-width="4"/>'
             + pts,
             "draw",
         )
@@ -864,7 +1002,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             ty = y + card_h / 2 - (lines - 1) * T["body"] * 0.58 + T["body"] * 0.35
             els.add(
                 f"point-{i}",
-                rounded_card(L.left, y, usable, card_h, "#FFFFFF", 0.08, YELLOW if i == 0 else "#FFFFFF", 0.35, 30)
+                theme_card(th, L.left, y, usable, card_h, radius=30)
                 # number badge keeps a gentle pulse so text-only scenes never freeze
                 + '<g data-idle="pulse">'
                 + f'<circle cx="{L.left + 40 + num_r}" cy="{y + card_h / 2}" r="{num_r}" fill="{YELLOW}"/>'
@@ -972,27 +1110,36 @@ def animation_plan(
     }
 
 
-def decor_layer(width: int, height: int, count: int = 18) -> str:
-    """Background circles; render(t) drifts each on its own seeded ellipse (data-drift)."""
+def decor_layer(width: int, height: int, th: Theme = THEME_DARK) -> str:
+    """Clean ambient background: a few large soft colour fields plus small crisp marks.
+
+    Everything drifts on its own seeded ellipse (data-drift), as a pure function of t.
+    """
     rng = np.random.default_rng(1729)
     out = []
-    for i in range(count):
-        ax, ay = rng.uniform(25, 70), rng.uniform(25, 70)
-        w, ph = rng.uniform(0.25, 0.6), rng.uniform(0, 2 * math.pi)
+    span = min(width, height)
+    for i in range(4):  # large soft colour fields
+        ax, ay = rng.uniform(70, 130), rng.uniform(70, 130)
+        w, ph = rng.uniform(0.35, 0.6), rng.uniform(0, 2 * math.pi)
         out.append(
-            f'<circle cx="{(i * 193 + 97) % width}" cy="{(i * 277 + 143) % height}" '
-            f'r="{10 + (i % 4) * 7}" fill="{YELLOW if i % 3 == 0 else PAPER}" opacity=".09" '
-            f'data-drift="{ax:.1f},{ay:.1f},{w:.3f},{ph:.3f}"/>'
+            f'<circle cx="{width * (0.12 + 0.28 * i):.0f}" cy="{height * (0.18 + 0.22 * ((i * 3) % 4)):.0f}" '
+            f'r="{span * (0.30 + 0.05 * (i % 2)):.0f}" fill="{th.blobs[i % len(th.blobs)]}" '
+            f'opacity="{th.blob_opacity}" filter="url(#blobBlur)" data-drift="{ax:.1f},{ay:.1f},{w:.3f},{ph:.3f}"/>'
         )
-    # A few large soft blobs: low-frequency ambient motion that reads even when small.
-    for i in range(5):
-        ax, ay = rng.uniform(60, 120), rng.uniform(60, 120)
-        w, ph = rng.uniform(0.45, 0.75), rng.uniform(0, 2 * math.pi)
-        out.insert(
-            0,
-            f'<circle cx="{width * (0.15 + 0.18 * i):.0f}" cy="{height * (0.2 + 0.15 * ((i * 3) % 5)):.0f}" '
-            f'r="{min(width, height) * (0.16 + 0.03 * (i % 3)):.0f}" fill="{YELLOW if i % 2 else PAPER}" '
-            f'opacity=".10" filter="url(#blobBlur)" data-drift="{ax:.1f},{ay:.1f},{w:.3f},{ph:.3f}"/>',
+    for i in range(6):  # small crisp editorial marks (plus signs / rings)
+        ax, ay = rng.uniform(20, 45), rng.uniform(20, 45)
+        w, ph = rng.uniform(0.4, 0.8), rng.uniform(0, 2 * math.pi)
+        x = width * (0.08 + 0.84 * ((i * 0.37) % 1))
+        y = height * (0.06 + 0.70 * ((i * 0.61) % 1))
+        mark = (
+            f'<path d="M{x - 14:.0f} {y:.0f}H{x + 14:.0f}M{x:.0f} {y - 14:.0f}V{y + 14:.0f}" '
+            if i % 2 == 0
+            else f'<circle cx="{x:.0f}" cy="{y:.0f}" r="13" fill="none" '
+        )
+        out.append(
+            mark
+            + f'stroke="{th.ink}" stroke-opacity=".16" stroke-width="5" stroke-linecap="round" '
+            f'data-drift="{ax:.1f},{ay:.1f},{w:.3f},{ph:.3f}"/>'
         )
     return "".join(out)
 
@@ -1015,7 +1162,7 @@ def grain_tiles() -> tuple[str, ...]:
     return tuple(uris)
 
 
-def grain_layer(width: int, height: int) -> str:
+def grain_layer(width: int, height: int, opacity: float = GRAIN_OPACITY) -> str:
     patterns = "".join(
         f'<pattern id="grain-{i}" width="{GRAIN_SIZE}" height="{GRAIN_SIZE}" patternUnits="userSpaceOnUse">'
         f'<image href="{uri}" width="{GRAIN_SIZE}" height="{GRAIN_SIZE}"/></pattern>'
@@ -1023,7 +1170,7 @@ def grain_layer(width: int, height: int) -> str:
     )
     rects = "".join(
         f'<rect data-grain="{i}" width="{width}" height="{height}" fill="url(#grain-{i})" '
-        f'opacity="{GRAIN_OPACITY}" style="mix-blend-mode:overlay" visibility="{"visible" if i == 0 else "hidden"}"/>'
+        f'opacity="{opacity}" style="mix-blend-mode:overlay" visibility="{"visible" if i == 0 else "hidden"}"/>'
         for i in range(GRAIN_TILES)
     )
     return f'<defs>{patterns}</defs><g id="grain" pointer-events="none">{rects}</g>'
@@ -1115,14 +1262,14 @@ def character_warnings(spec: EpisodeSpec) -> list[str]:
 
 
 def highlight_line(line: str, highlighted: list[str]) -> str:
-    """Escape a caption line and wrap highlighted phrases in a yellow tspan."""
+    """Escape a caption line and mark highlighted phrases (navy ink on a highlighter swipe)."""
     if not highlighted:
         return esc(line)
     ordered = sorted(highlighted, key=len, reverse=True)
     pattern = re.compile("(" + "|".join(re.escape(h) for h in ordered) + ")", re.IGNORECASE)
     folded = {h.casefold() for h in highlighted}
     return "".join(
-        f'<tspan fill="{YELLOW}" font-weight="850">{esc(part)}</tspan>'
+        f'<tspan data-hl="1" fill="{NAVY}" stroke="none" font-weight="900">{esc(part)}</tspan>'
         if part.casefold() in folded
         else esc(part)
         for part in pattern.split(line)
@@ -1138,7 +1285,8 @@ def build_scene_html(
     cx = width / 2
     brand_size = 28 if portrait else 24
     mascot_on = scene.character.mascot == "on"
-    layout = compute_layout(width, height, mascot_on)
+    layout = compute_layout(width, height, mascot_on, scene.background)
+    th = layout.th
     els = template_art(scene, layout)
     art = els.html()
     plan = animation_plan(
@@ -1177,17 +1325,33 @@ def build_scene_html(
             f'<tspan x="{cx}" dy="{0 if i == 0 else gap}">{highlight_line(line, highlighted)}</tspan>'
             for i, line in enumerate(lines)
         )
-        # Borderless caption: heavy text with a dark outline (paint-order) for legibility.
+        # Borderless caption. Dark scenes: light text with a dark outline. Light scenes: navy
+        # ink. Highlighted words get a highlighter swipe (rects positioned by render()).
+        n_hl = tspans.count("data-hl=")
+        swipes = "".join(
+            f'<rect data-hl-rect="1" rx="10" fill="{th.highlight}" width="0" height="0"/>'
+            for _ in range(n_hl)
+        )
+        outline = (
+            f'stroke="{th.caption_stroke}" stroke-width="{cap_size * 0.2:.1f}" stroke-linejoin="round" '
+            'paint-order="stroke" '
+            if th.caption_stroke
+            else ""
+        )
         caps.append(
-            f'<g id="caption-{idx}" opacity="0"><text x="{cx}" y="{first:.1f}" text-anchor="middle" '
-            f'fill="{PAPER}" stroke="#0B1428" stroke-width="{cap_size * 0.2:.1f}" stroke-linejoin="round" '
-            f'paint-order="stroke" font-family="{FONT_BODY}" font-size="{cap_size}" font-weight="800" '
+            f'<g id="caption-{idx}" opacity="0">{swipes}<text x="{cx}" y="{first:.1f}" text-anchor="middle" '
+            f'fill="{th.ink}" {outline}font-family="{FONT_BODY}" font-size="{cap_size}" font-weight="800" '
             f'letter-spacing="-.5">{tspans}</text></g>'
         )
     captions_json = json.dumps(timing_scene.get("captions", []), ensure_ascii=False)
     # deterministic decor: no wall clock, no CSS animation, all movement comes from render(t).
-    decor = decor_layer(width, height)
-    grain = grain_layer(width, height)
+    decor = decor_layer(width, height, th)
+    grain = grain_layer(width, height, th.grain_opacity)
+    grid_cell = (
+        '<circle cx="36" cy="36" r="2.4" fill="#111D38" fill-opacity=".10"/>'
+        if th.name == "light"
+        else '<path d="M72 0H0V72" fill="none" stroke="#FFFFFF" stroke-opacity=".035" stroke-width="1"/>'
+    )
     mascot_layer = nodi
     nodi_js = NODI_RIG_JS if layout.nodi else ""
     nodi_state_json = json.dumps(nodi_state)
@@ -1196,18 +1360,19 @@ def build_scene_html(
       html,body{{margin:0;width:{width}px;height:{height}px;background:{bg};overflow:hidden}}
       svg{{display:block;width:{width}px;height:{height}px}}
       text{{font-synthesis:none}}
+      .fn-accent{{fill:{th.accent}}}
       {font_face_css()}
-    </style></head><body><svg id="frame" xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+    </style></head><body><svg id="frame" xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" color="{th.ink}">
       <defs>
         <radialGradient id="bgGlow" cx="50%" cy="42%" r="75%" gradientUnits="objectBoundingBox"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".10"/><stop offset="1" stop-color="#000000" stop-opacity=".10"/></radialGradient>
-        <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse" patternTransform="translate(0 0)"><path d="M72 0H0V72" fill="none" stroke="#FFFFFF" stroke-opacity=".035" stroke-width="1"/></pattern>
+        <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse" patternTransform="translate(0 0)">{grid_cell}</pattern>
         <filter id="blobBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
         <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
         <filter id="nodiRim" x="-10%" y="-10%" width="120%" height="120%"><feMorphology in="SourceAlpha" operator="dilate" radius="9" result="d"/><feFlood flood-color="#F4F1E8" flood-opacity=".92"/><feComposite in2="d" operator="in" result="rim"/><feMerge><feMergeNode in="rim"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
       <rect width="100%" height="100%" fill="{bg}"/><rect width="100%" height="100%" fill="url(#bgGlow)"/><rect width="100%" height="100%" fill="url(#grid)"/>
       <g id="decor">{decor}</g>
-      <text id="brand" x="{width - 56}" y="{brand_size + 60}" text-anchor="end" fill="{PAPER}" opacity=".5" font-family="Space Grotesk, sans-serif" font-size="{brand_size + 10}" font-weight="700" letter-spacing="1">F/N</text>
+      <text id="brand" x="{width - 56}" y="{brand_size + 60}" text-anchor="end" fill="{th.ink}" opacity=".5" font-family="Space Grotesk, sans-serif" font-size="{brand_size + 10}" font-weight="700" letter-spacing="1">F/N</text>
       <g id="scene-art">{art}</g>
       <g id="mascot-layer" opacity="0">{mascot_layer}</g>
       {"".join(caps)}
@@ -1251,8 +1416,14 @@ def build_scene_html(
         }}
         node.querySelectorAll('[data-head]').forEach((h) => {{
           const series = h.parentNode.querySelector('[data-series]'), len = series ? strokeLen(series) : 0;
-          if (len > 0) {{ const pt = series.getPointAtLength(len * drawP); h.setAttribute('cx', pt.x); h.setAttribute('cy', pt.y); }}
-          h.setAttribute('r', 19 + (drawP >= 1 ? 3 * Math.sin(t * 4) : 0));
+          if (len > 0) {{
+            const pt = series.getPointAtLength(len * drawP);
+            if (h.tagName === 'circle') {{ h.setAttribute('cx', pt.x); h.setAttribute('cy', pt.y); h.setAttribute('r', 20 + (drawP >= 1 ? 3 * Math.sin(t * 4) : 0)); }}
+            else {{
+              const lift = Number(h.dataset.lift || 0), bob = drawP >= 1 ? Math.sin(t * 3.2) * 6 : 0;
+              h.setAttribute('transform', `translate(${{pt.x}} ${{pt.y - lift + bob}}) rotate(${{drawP < 1 ? Math.sin(t * 9) * 6 : 0}})`);
+            }}
+          }}
         }});
         node.querySelectorAll('[data-reveal]').forEach((c) => c.setAttribute('opacity', smooth((drawP - Number(c.dataset.reveal)) / 0.08 + 1)));
         node.querySelectorAll('[data-count]').forEach((x) => {{
@@ -1345,7 +1516,19 @@ def build_scene_html(
           const active=t>=c.start && t<=c.end;
           const enter=active?smooth((t-c.start)/0.12):0;
           el.setAttribute('opacity',active?Math.max(.0,enter):0);
-          if(active) el.setAttribute('transform',`translate(0 ${{(1-enter)*14}})`);
+          if(active) {{
+            el.setAttribute('transform',`translate(0 ${{(1-enter)*14}})`);
+            const words = el.querySelectorAll('[data-hl]'), rects = el.querySelectorAll('[data-hl-rect]');
+            words.forEach((w, k) => {{
+              const r = rects[k], n = w.getNumberOfChars();
+              if (!r || !n) return;
+              // glyph positions (tspan getBBox under-reports the last advance)
+              const x0 = w.getStartPositionOfChar(0).x, x1 = w.getEndPositionOfChar(n - 1).x;
+              const e = w.getExtentOfChar(0), sw = easeOut((t - c.start - 0.12 - k * 0.1) / 0.32);
+              r.setAttribute('x', x0 - 12); r.setAttribute('y', e.y + e.height * 0.14);
+              r.setAttribute('width', Math.max(0, (x1 - x0 + 24) * sw)); r.setAttribute('height', e.height * 0.8);
+            }});
+          }}
         }});
       }};
       window.render(0, 'smile', true);

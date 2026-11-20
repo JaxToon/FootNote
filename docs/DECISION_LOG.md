@@ -62,6 +62,12 @@ Space Grotesk (display), Inter (body/captions), IBM Plex Mono (labels): unmodifi
 blocked for `set_content` pages). Not subset/renamed because IBM Plex has the Reserved Font
 Name "Plex". Symbols the display font renders poorly (currently `≠`) are drawn as SVG.
 
+### D-017 — Editorial "paper" art direction (2026-11-20, proposed — owner approval pending)
+Scenes default to light themes (`paper`, `yellow`: navy ink, coral accents, yellow highlighter
+captions), matching the NODI concept board; dark themes (`navy`, `coral`, ...) are used as
+contrast scenes. Background tokens added: `yellow`. Colour roles live in `Theme` objects in
+`render/svg_scene.py`, so reverting is a spec change (scene `background`), not a code change.
+
 ## Change procedure
 
 Add dated entries or supersede a decision with rationale. Never erase history. A recommendation is not approval.

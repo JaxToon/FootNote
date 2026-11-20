@@ -32,7 +32,7 @@ scenes:
       mascot: "on"
       mascot_pose: "wave"
       expression: "happy"
-    background: "purple"
+    background: "paper"
     template: "title_question"
     props:
       headline: "KORELASI ≠ KAUSALITAS"
@@ -56,7 +56,7 @@ scenes:
       mascot: "on"
       mascot_pose: "shrug"
       expression: "skeptical"
-    background: "teal"
+    background: "yellow"
     template: "title_question"
     props:
       headline: "SEBAB-AKIBAT?"
@@ -78,7 +78,7 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "purple"
+    background: "paper"
     template: "paired_trend"
     props:
       variables: ["Penjualan es krim", "Kasus kulit terbakar matahari"]
@@ -107,7 +107,7 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "deep_blue"
+    background: "paper"
     template: "question_link"
     props:
       labels:
@@ -139,7 +139,7 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "teal"
+    background: "navy"
     template: "causal_diagram"
     props:
       nodes:
@@ -169,19 +169,20 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "deep_blue"
-    template: "takeaway"
+    background: "paper"
+    template: "compare"
     props:
-      points:
-        - "Korelasi = dua hal bergerak bersama"
-        - "Kausalitas = yang satu menyebabkan yang lain"
+      items:
+        - {term: "KORELASI", definition: "Dua hal bergerak bersama", icon: together}
+        - {term: "KAUSALITAS", definition: "Yang satu menyebabkan yang lain", icon: domino}
     duration_hint_seconds: 6.5
     beats:
-      - {at: 0.02, target: point-0, action: slide}
-      - {at: "word:bergerak", target: point-0, action: highlight}
-      - {at: "caption:1", target: point-1, action: slide}
-      - {at: "word:benar-benar", target: point-1, action: highlight}
-      - {at: 0.92, target: point-0, action: highlight}
+      - {at: 0.02, target: side-0, action: pop}
+      - {at: "word:bergerak", target: side-0, action: highlight}
+      - {at: "caption:1", target: vs, action: pop}
+      - {at: "caption:1", target: side-1, action: slide}
+      - {at: "word:benar-benar", target: side-1, action: highlight}
+      - {at: 0.9, target: vs, action: highlight}
 
   - id: close
     title: "Penutup"

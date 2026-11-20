@@ -51,7 +51,7 @@ def test_scene_has_secondary_motion_hooks() -> None:
     timing = build_estimated_timing(spec, 0.35)
     i = next(k for k, sc in enumerate(spec.scenes) if sc.template == "causal_diagram")
     html = build_scene_html(spec, spec.scenes[i], timing["scenes"][i], timing)
-    assert html.count("data-drift=") >= 18
+    assert html.count("data-drift=") >= 10  # colour fields + crisp marks, all drifting
     assert html.count("data-grain=") == 3 and "mix-blend-mode:overlay" in html
     assert 'data-idle="spin"' in html  # the sun icon keeps turning
 

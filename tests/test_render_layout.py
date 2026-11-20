@@ -82,7 +82,11 @@ def test_paired_trend_plots_spec_series() -> None:
     base = next(sc for sc in spec.scenes if sc.template == "paired_trend")
     scene = base.model_copy(update={"props": {**base.props, "series": [[1, 2, 3], [3, 2, 1]]}})
     html = build_scene_html(spec, scene, {"captions": []}, {})
-    assert html.count('data-reveal="') == 6  # one dot per data point
+    import re
+
+    series = re.findall(r'data-series="1" d="([^"]+)"', html)
+    assert len(series) == 2  # both variables share one plot
+    assert all(d.count("L") == 2 for d in series)  # 3 data points each, from the spec
 
 
 def _chromium_ok() -> bool:
@@ -220,3 +224,35 @@ def test_minimal_branding_and_no_title_pill_fallback() -> None:
         update={"props": {**spec.scenes[0].props, "chapter": "Fondasi 01"}}
     )
     assert 'data-id="chapter"' in build_scene_html(spec, scene, timing["scenes"][0], timing)
+
+
+def test_theme_follows_background() -> None:
+    from fnvideo.render.svg_scene import THEME_DARK, THEME_PAPER, theme_for
+
+    assert theme_for("paper") is THEME_PAPER and theme_for("navy") is THEME_DARK
+    spec = _spec("short", 1080, 1920)
+    timing = build_estimated_timing(spec, 0.35)
+    scene = spec.scenes[0].model_copy(update={"background": "paper"})
+    html = build_scene_html(spec, scene, timing["scenes"][0], timing)
+    assert 'color="#111D38"' in html  # navy ink on paper
+    dark = build_scene_html(
+        spec, scene.model_copy(update={"background": "navy"}), timing["scenes"][0], timing
+    )
+    assert 'color="#F4F1E8"' in dark
+
+
+def test_compare_template_has_two_sides_and_divider() -> None:
+    spec = _spec("short", 1080, 1920)
+    scene = spec.scenes[0].model_copy(
+        update={
+            "template": "compare",
+            "character": spec.scenes[0].character.model_copy(update={"mascot": "off"}),
+            "props": {"items": [
+                {"term": "A", "definition": "x", "icon": "together"},
+                {"term": "B", "definition": "y", "icon": "domino"},
+            ]},
+        }
+    )  # fmt: skip
+    html = build_scene_html(spec, scene, {"captions": []}, {})
+    for eid in ("side-0", "side-1", "vs"):
+        assert f'data-id="{eid}"' in html
