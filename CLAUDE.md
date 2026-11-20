@@ -47,7 +47,7 @@ The initial engine is Python + HTML/SVG + Playwright Chromium + FFmpeg. Do not m
 
 - F/N brand palette: Ink Navy `#111D38`, Footnote Yellow `#F3D65B`, Paper `#F4F1E8`, Signal Coral `#E56B50`, Deep Blue `#243D57`, Teal `#245F59`, Purple `#5142A0`.
 - NODI: balanced proportions, hybrid expressions (subtle by default, expressive at story beats), editorial × graphic cartoon, modular outfits. Navy hood silhouette, cream face, dark eyes, signature yellow folded corner.
-- The included NODI concept board is reference art, not a production-ready layered rig. The current SVG puppet is an initial procedural rig and must remain easy to replace with illustrator-delivered SVG layers. The user requires the new video to outperform a prior reference; do not claim this until the actual MP4 is present and the `docs/QUALITY_BAR.md` scorecard passes.
+- The included NODI concept board is reference art. The production puppet is the layered rig in `src/fnvideo/render/assets/nodi_rig.js` (see `docs/NODI_RIG.md`), drawn from the board's front view. Any change to NODI anatomy must be checked side by side against the board before merging. It must remain easy to replace with illustrator-delivered SVG layers (keep the documented pivots). The user requires the new video to outperform a prior reference; do not claim this until the actual MP4 is present and the `docs/QUALITY_BAR.md` scorecard passes.
 - Presenter avatar and NODI are independent roles. Do not conflate them. The pilot currently shows NODI selectively and keeps the presenter off.
 - Captions must remain above the bottom 20% UI safe region in portrait videos.
 - Do not add unlicensed music, stock art, logos, icons, or fonts. Music stays off by default.

@@ -5,6 +5,7 @@ import json
 import math
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from fnvideo.models.episode import EpisodeSpec, SceneSpec
@@ -99,81 +100,48 @@ def pill(x: float, y: float, label: str, fill: str = YELLOW, text_fill: str = "#
     )
 
 
-def nodi_svg(x: float, y: float, scale: float, pose: str, outfit: str, expression: str) -> str:
-    """Reusable NODI vector puppet; keep anatomy stable across outfit variants."""
-    outfit_color = {
-        "classic": "#243D57",
-        "academic": "#245F59",
-        "data_explorer": "#5142A0",
-        "creator": "#E56B50",
-        "career_ready": "#243D57",
-    }.get(outfit, "#243D57")
-    # Pose changes are deliberately small: NODI is a companion, not the focal content.
-    left_arm = "M72 218 Q25 218 24 164" if pose in {"wave", "curious"} else "M72 218 Q34 250 43 286"
-    right_arm = (
-        "M205 218 Q252 203 260 150"
-        if pose in {"explaining", "point"}
-        else "M205 218 Q244 250 232 286"
-    )
-    right_hand = (
-        '<circle cx="260" cy="145" r="15" fill="#B97958"/>'
-        if pose in {"explaining", "point"}
-        else '<circle cx="232" cy="286" r="15" fill="#B97958"/>'
-    )
-    mouth = {
-        "curious": "M116 143 Q132 151 148 143",
-        "thinking": "M119 146 Q132 143 145 146",
-        "skeptical": "M116 148 Q132 139 148 149",
-        "happy": "M111 139 Q132 169 153 139",
-        "surprised": "M122 140 Q132 162 142 140",
-        "thoughtful": "M116 147 Q132 155 148 147",
-        "explaining": "M113 141 Q132 160 151 141",
-    }.get(expression, "M114 142 Q132 158 150 142")
-    brow = {
-        "curious": ("M103 104 Q116 96 127 103", "M139 103 Q151 95 163 101"),
-        "thinking": ("M103 103 Q115 96 127 103", "M139 103 Q151 105 163 108"),
-        "skeptical": ("M103 108 Q116 105 127 99", "M139 102 Q151 96 163 97"),
-        "surprised": ("M102 96 Q115 88 127 96", "M139 96 Q151 88 164 96"),
-        "happy": ("M104 106 Q115 101 127 105", "M139 105 Q151 101 162 106"),
-    }.get(expression, ("M104 105 Q115 100 127 105", "M139 105 Q151 100 162 105"))
+NODI_RIG_JS = (Path(__file__).parent / "assets" / "nodi_rig.js").read_text(encoding="utf-8")
 
-    outfit_detail = {
-        "classic": '<path d="M105 220 Q132 235 159 220" fill="none" stroke="#F4F1E8" stroke-opacity=".7" stroke-width="4"/><circle cx="132" cy="254" r="5" fill="#F3D65B"/>',
-        "academic": '<path d="M99 221 L165 221 L158 278 L106 278 Z" fill="#F4F1E8" fill-opacity=".14" stroke="#F4F1E8" stroke-opacity=".75" stroke-width="3"/><path d="M110 235 H151 M110 247 H146 M110 259 H138" stroke="#F4F1E8" stroke-width="3" stroke-linecap="round"/><path d="M119 89 h-18 m62 0 h-18" stroke="#111D38" stroke-width="5"/>',
-        "data_explorer": '<path d="M95 228 H169 V282 H95 Z" fill="#F3D65B" fill-opacity=".16" stroke="#F3D65B" stroke-width="3"/><path d="M106 266 L119 253 L132 261 L151 238" fill="none" stroke="#F3D65B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="151" cy="238" r="4" fill="#F3D65B"/>',
-        "creator": '<path d="M102 225 L162 225 L155 281 H109 Z" fill="#F4F1E8" fill-opacity=".12" stroke="#F4F1E8" stroke-opacity=".65" stroke-width="3"/><path d="M112 242 H152 M112 254 H142" stroke="#F4F1E8" stroke-width="3" stroke-linecap="round"/><path d="M78 43 Q132 -1 186 43" fill="none" stroke="#F3D65B" stroke-width="7" stroke-linecap="round"/>',
-        "career_ready": '<path d="M132 211 L145 231 L132 254 L119 231 Z" fill="#F3D65B"/><path d="M119 231 L132 254 L132 283 L111 265 Z M145 231 L132 254 L132 283 L153 265 Z" fill="#F4F1E8" fill-opacity=".85"/>',
-    }.get(outfit, "")
+# Spec vocabulary -> rig vocabulary (see assets/nodi_rig.js POSES / EXPRESSIONS).
+NODI_POSE_MAP = {
+    "rest": "rest",
+    "curious": "rest",
+    "wave": "wave",
+    "point": "point",
+    "explaining": "explain",
+    "explain": "explain",
+    "thinking": "think",
+    "think": "think",
+    "shrug": "shrug",
+    "cheer": "cheer",
+    "excited": "cheer",
+    "talk": "explain",
+    "gesture": "explain",
+}
+NODI_EXPRESSION_MAP = {
+    "neutral": "neutral",
+    "curious": "curious",
+    "happy": "happy",
+    "surprised": "surprised",
+    "skeptical": "skeptical",
+    "thinking": "thinking",
+    "thoughtful": "thinking",
+    "excited": "excited",
+    "explaining": "neutral",
+}
+DARK_BACKGROUNDS = {"navy", "navy_dark", "deep_blue"}
 
-    return f'''<g id="nodi" transform="translate({x} {y}) scale({scale})">
-      <ellipse cx="135" cy="337" rx="101" ry="13" fill="#050B17" opacity=".30"/>
-      <!-- Stable hood silhouette and folded-corner signature -->
-      <path d="M55 103 Q52 26 126 17 Q204 9 222 89 L215 174 Q207 205 184 218 L78 218 Q54 192 50 158 Z" fill="#111D38" stroke="#070E1D" stroke-width="8" stroke-linejoin="round"/>
-      <path d="M66 94 Q76 42 132 39 Q190 39 207 94 Q203 151 178 171 Q133 190 91 169 Q68 147 66 94 Z" fill="#F4F1E8" stroke="#D9D4C9" stroke-width="4"/>
-      <path d="M178 34 L222 17 L213 71 L190 62 Z" fill="#F3D65B" stroke="#111D38" stroke-width="6" stroke-linejoin="round"/>
-      <path d="M189 61 L213 71" stroke="#D4B73D" stroke-width="3"/>
-      <!-- Brows and eyes -->
-      <path d="{brow[0]}" fill="none" stroke="#111D38" stroke-width="5" stroke-linecap="round"/>
-      <path d="{brow[1]}" fill="none" stroke="#111D38" stroke-width="5" stroke-linecap="round"/>
-      <ellipse cx="115" cy="124" rx="7.5" ry="12" fill="#111D38"/>
-      <ellipse cx="150" cy="124" rx="7.5" ry="12" fill="#111D38"/>
-      <path id="nodi-mouth" d="{mouth}" fill="none" stroke="#111D38" stroke-width="5.5" stroke-linecap="round"/>
-      <path d="M87 151 Q96 156 104 151 M160 151 Q168 156 176 151" fill="none" stroke="#E56B50" stroke-opacity=".45" stroke-width="4" stroke-linecap="round"/>
-      <!-- Arms behind torso -->
-      <path d="{left_arm}" fill="none" stroke="{outfit_color}" stroke-width="25" stroke-linecap="round"/>
-      <path d="{right_arm}" fill="none" stroke="{outfit_color}" stroke-width="25" stroke-linecap="round"/>
-      <circle cx="24" cy="164" r="14" fill="#B97958"/>
-      {right_hand}
-      <!-- Modular torso, consistent anatomy -->
-      <path d="M75 198 Q132 177 198 198 L211 294 Q133 321 59 294 Z" fill="{outfit_color}" stroke="#0B1428" stroke-width="6" stroke-linejoin="round"/>
-      <path d="M108 202 Q132 225 156 202" fill="none" stroke="#F4F1E8" stroke-opacity=".40" stroke-width="4"/>
-      {outfit_detail}
-      <!-- Legs and signature sneakers -->
-      <path d="M82 288 L78 320 Q100 331 121 319 L119 291 Z M146 291 L145 319 Q169 332 190 320 L182 288 Z" fill="#111D38"/>
-      <path d="M62 322 Q89 313 119 322 Q127 327 122 340 H59 Q48 335 62 322 Z" fill="#F4F1E8" stroke="#111D38" stroke-width="5"/>
-      <path d="M145 322 Q173 313 199 322 Q211 335 199 340 H145 Q137 331 145 322 Z" fill="#F4F1E8" stroke="#111D38" stroke-width="5"/>
-      <path d="M72 333 H111 M157 333 H190" stroke="#F3D65B" stroke-width="4" stroke-linecap="round"/>
-    </g>'''
+
+def nodi_layer(x: float, y: float, scale: float, *, rim: bool) -> str:
+    """Mount point for the layered NODI rig (drawn and animated by nodi_rig.js).
+
+    On dark backgrounds a paper-coloured sticker rim keeps the navy hood readable.
+    """
+    rim_attr = ' filter="url(#nodiRim)"' if rim else ""
+    return (
+        f'<g id="nodi" transform="translate({x:.1f} {y:.1f}) scale({scale})"{rim_attr}>'
+        '<g id="nodi-holder"></g></g>'
+    )
 
 
 @dataclass(frozen=True)
@@ -196,8 +164,8 @@ class Layout:
         return max(8, int(base * self.rw / self.width))
 
 
-# NODI puppet artwork occupies roughly 265 x 345 units before scaling.
-NODI_W, NODI_H = 265, 345
+# NODI rig artwork box (assets/nodi_rig.js): 510 x 770 units before scaling.
+NODI_W, NODI_H = 510, 770
 SHORT_SAFE_BOTTOM = 0.80  # keep important info out of the bottom 20% (platform UI)
 
 
@@ -208,7 +176,7 @@ def compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
         caption_y = height * SHORT_SAFE_BOTTOM - 40 - cap_h
         nodi = None
         if mascot_on:
-            scale = 0.78
+            scale = 0.56
             nodi = (width - 64 - NODI_W * scale, caption_y - 24 - NODI_H * scale, scale)
         return Layout(
             width, height, True, width / 2, width, 265, caption_y - 40, caption_y, cap_h, nodi
@@ -217,7 +185,7 @@ def compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
     caption_y = height - 290
     top, bottom = 185, caption_y - 30
     if mascot_on:
-        scale = 0.80
+        scale = 0.50
         column = 380
         nodi = (width - 64 - NODI_W * scale, (top + bottom) / 2 - NODI_H * scale / 2, scale)
         left, right = 64, width - column
@@ -691,16 +659,18 @@ def build_scene_html(
     layout = compute_layout(width, height, mascot_on)
     art = template_art(scene, layout)
     nodi = ""
+    nodi_state = {}
     if layout.nodi:
         nx, ny, scale = layout.nodi
-        nodi = nodi_svg(
-            nx,
-            ny,
-            scale,
-            scene.character.mascot_pose or "rest",
-            scene.character.mascot_outfit,
-            scene.character.expression or "curious",
-        )
+        nodi = nodi_layer(nx, ny, scale, rim=scene.background in DARK_BACKGROUNDS)
+        nodi_state = {
+            "pose": NODI_POSE_MAP.get(scene.character.mascot_pose or "rest", "rest"),
+            "expression": NODI_EXPRESSION_MAP.get(
+                scene.character.expression or "neutral", "neutral"
+            ),
+            # varies the talking-gesture schedule from scene to scene (still deterministic)
+            "gestureSeed": next((i for i, s in enumerate(spec.scenes) if s.id == scene.id), 0),
+        }
     caption_y = layout.caption_y
     cap_h = layout.caption_h
     caps = []
@@ -727,6 +697,8 @@ def build_scene_html(
         for i in range(18)
     )
     mascot_layer = nodi
+    nodi_js = NODI_RIG_JS if layout.nodi else ""
+    nodi_state_json = json.dumps(nodi_state)
     return f'''<!doctype html><html><head><meta charset="utf-8"><style>
       html,body{{margin:0;width:{width}px;height:{height}px;background:{bg};overflow:hidden}}
       svg{{display:block;width:{width}px;height:{height}px}}
@@ -736,6 +708,7 @@ def build_scene_html(
         <radialGradient id="bgGlow" cx="50%" cy="42%" r="75%"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".10"/><stop offset="1" stop-color="#000000" stop-opacity=".10"/></radialGradient>
         <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse"><path d="M72 0H0V72" fill="none" stroke="#FFFFFF" stroke-opacity=".035" stroke-width="1"/></pattern>
         <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
+        <filter id="nodiRim" x="-10%" y="-10%" width="120%" height="120%"><feMorphology in="SourceAlpha" operator="dilate" radius="9" result="d"/><feFlood flood-color="#F4F1E8" flood-opacity=".92"/><feComposite in2="d" operator="in" result="rim"/><feMerge><feMergeNode in="rim"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
       <rect width="100%" height="100%" fill="{bg}"/><rect width="100%" height="100%" fill="url(#bgGlow)"/><rect width="100%" height="100%" fill="url(#grid)"/>
       {decor}
@@ -748,13 +721,17 @@ def build_scene_html(
       {"".join(caps)}
       <text x="64" y="{height - 70}" fill="{PAPER}" opacity=".38" font-family="IBM Plex Mono, monospace" font-size="18" letter-spacing="2">BEYOND THE OBVIOUS.</text>
     </svg>
+    <script>{nodi_js}</script>
     <script>
     // Scoped: Playwright set_content reuses the same window across scenes, so top-level
     // const declarations would collide and silently keep the previous scene's render().
     (() => {{
       const captions = {captions_json};
       const mascotEnabled = {str(mascot_on).lower()};
-      const mouthShapes = {{smile:'M114 142 Q132 158 150 142', small:'M119 146 Q132 152 145 146', mid:'M116 140 Q132 162 148 140', wide:'M111 137 Q132 175 153 137', o:'M122 139 Q132 165 142 139'}};
+      const nodiState = {nodi_state_json};
+      const holder = document.getElementById('nodi-holder');
+      const nodi = (mascotEnabled && holder && window.NODI) ? window.NODI.mount(holder) : null;
+      const ENERGY = {{smile:0, none:0, small:.3, mid:.6, o:.5, wide:.9}};
       window.render = function(t, mouth='smile') {{
         const smooth = (v) => {{v=Math.max(0,Math.min(1,v));return v*v*(3-2*v)}};
         const art=document.getElementById('scene-art');
@@ -774,8 +751,17 @@ def build_scene_html(
         if(mascotEnabled) {{
           ml.setAttribute('opacity', smooth(t/0.5));
           ml.setAttribute('transform', `translate(0 ${{Math.sin(t*2.1)*5}})`);
-          const m=document.getElementById('nodi-mouth');
-          if(m) m.setAttribute('d', mouthShapes[mouth] || mouthShapes.smile);
+          if(nodi) {{
+            // deterministic blink every 3.2 s; 'smile' from the audio pipeline = mouth closed
+            const bp=(t+1.1)%3.2, blink = bp<0.16 ? 1-Math.abs(bp-0.08)/0.08 : 0;
+            // smoothed "is speaking" from caption windows -> drives hand gestures
+            let activity=0;
+            for (const c of captions) activity=Math.max(activity,
+              smooth((t-c.start)/0.3)*smooth((c.end+0.15-t)/0.3));
+            nodi.update({{t, pose:nodiState.pose, poseT:t, expression:nodiState.expression,
+              mouth: mouth==='smile' ? 'none' : mouth, blink, talkEnergy: ENERGY[mouth]||0,
+              activity, gesture:'auto', gestureSeed:nodiState.gestureSeed}});
+          }}
         }}
         captions.forEach((c,i)=>{{
           const el=document.getElementById('caption-'+i);
