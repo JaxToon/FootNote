@@ -1,4 +1,28 @@
-# Build Status — Starter v4
+# Build Status
+
+## Verified locally — 2026-11-20 (Windows 11, Python 3.11.9, FFmpeg 9.0.2, Playwright Chromium)
+
+- `pytest`: 47 passed (includes real-Chromium template/scene-isolation test).
+- `ruff check .` and `ruff format --check .`: clean (E501 delegated to the formatter).
+- `fnvideo doctor`: all render dependencies OK; ElevenLabs key/voice ID not configured (expected).
+- Short, Long, and SQL JOIN specs validate.
+- `fnvideo preview` for Short and Long: contact sheets inspected at full size.
+- `fnvideo render <short> --allow-draft --silent`: 1080x1920 H.264/AAC, 969/969 frames,
+  32.3 s, all technical QA checks pass. Silent placeholder audio, estimated caption timing;
+  this is a motion/layout draft, not a deliverable.
+
+Fixed in this pass: scene-to-scene `window.render` leak (captions used the previous scene's
+timing), caption gaps, NODI/headline/card collisions, Short caption inside bottom 20%,
+contact-sheet ordering, cumulative frame drift, mouth min-hold at track start, stale preview
+timing, non-atomic FFmpeg intermediates.
+
+Still not verified: real ElevenLabs TTS / voice likeness, loudness of real narration,
+reference-video comparison, brand fonts (Space Grotesk / Inter / IBM Plex Mono are not yet
+bundled, so Chromium falls back to Arial).
+
+---
+
+# Build Status — Starter v4 (historical)
 
 This file records what was actually verified while assembling this greenfield starter. It is not a claim that the first episode is production-ready.
 
