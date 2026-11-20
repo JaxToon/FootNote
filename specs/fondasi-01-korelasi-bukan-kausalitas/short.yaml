@@ -47,7 +47,8 @@ scenes:
     narration: "Misalnya, saat penjualan es krim naik, kasus kulit terbakar matahari juga bisa ikut naik."
     captions:
       - text: "Es krim naik"
-      - text: "Kulit terbakar matahari ikut naik"
+      - text: "Kulit terbakar matahari"
+      - text: "ikut naik"
     character:
       presenter: "off"
       mascot: "off"
@@ -70,7 +71,8 @@ scenes:
     captions:
       - text: "Ada faktor ketiga"
         highlight: ["faktor ketiga"]
-      - text: "Cuaca panas memengaruhi keduanya"
+      - text: "Cuaca panas"
+      - text: "memengaruhi keduanya"
     character:
       presenter: "off"
       mascot: "off"

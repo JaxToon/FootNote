@@ -29,16 +29,20 @@ def _spec(fmt: str, width: int, height: int) -> EpisodeSpec:
 @pytest.mark.parametrize("mascot", [True, False])
 def test_layout_zones(fmt: str, width: int, height: int, mascot: bool) -> None:
     lay = compute_layout(width, height, mascot)
-    assert lay.top < lay.bottom < lay.caption_y
-    if fmt == "short":  # captions stay out of the bottom 20% platform-UI zone
-        assert lay.caption_y + lay.caption_h <= height * 0.80
+    assert lay.top < lay.bottom < lay.caption_base
+    if fmt == "short":
+        assert lay.top == 200 and lay.bottom >= 1440  # content fills y=200..~1450
+        assert lay.caption_base <= height * 0.80  # one-line caption stays above the UI zone
+        t = lay.type
+        assert 110 <= t["headline"] <= 160
+        assert t["label"] >= 36 and t["supporting"] >= 40 and t["caption"] == 56
     if mascot:
         assert lay.nodi is not None
         x, y, s = lay.nodi
         assert 0 <= x and x + NODI_W * s <= width
-        assert y >= 0 and y + NODI_H * s <= lay.caption_y
+        assert y >= 0 and y + NODI_H * s <= lay.caption_base
         if fmt == "long":  # NODI column is outside the content zone
-            assert lay.cx + lay.rw / 2 <= x
+            assert lay.right <= x
     else:
         assert lay.nodi is None
 
@@ -169,7 +173,7 @@ def test_qa_report_metadata(tmp_path: Path) -> None:
     assert qa["publish_ready"] is False
     assert qa["status"] == "draft_test_render"
     assert qa["audio_source"] == "silent_placeholder"
-    assert qa["caption_timing_quality"] == {"estimated": 8}
+    assert qa["caption_timing_quality"] == {"estimated": sum(len(s.captions) for s in spec.scenes)}
     json.dumps(qa)  # serialisable
 
     bad = engine.build_qa_report(
@@ -178,3 +182,15 @@ def test_qa_report_metadata(tmp_path: Path) -> None:
     )  # fmt: skip
     assert bad["checks"]["duration_matches_timing"] is False
     assert bad["technical_checks_passed"] is False
+
+
+def test_captions_fit_one_line_and_pilot_short_has_no_caption_warnings() -> None:
+    from fnvideo.render.svg_scene import CAPTION_MIN_SIZE, caption_fit, caption_warnings
+
+    lay = compute_layout(1080, 1920, False)
+    size, lines = caption_fit("Belum tentu saling menyebabkan", lay)
+    assert len(lines) == 1 and size <= 56
+    size, lines = caption_fit("Kalimat yang sangat panjang sekali untuk satu baris caption", lay)
+    assert size == CAPTION_MIN_SIZE and len(lines) == 2
+    spec = load_episode_spec(ROOT / "specs/fondasi-01-korelasi-bukan-kausalitas/short.yaml")
+    assert caption_warnings(spec) == []

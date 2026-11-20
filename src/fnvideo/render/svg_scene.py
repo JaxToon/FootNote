@@ -118,15 +118,6 @@ def rounded_card(
     )
 
 
-def pill(x: float, y: float, label: str, fill: str = YELLOW, text_fill: str = "#111D38") -> str:
-    width = max(112, min(420, 36 + len(label) * 17))
-    return (
-        f'<rect x="{x - width / 2}" y="{y - 28}" width="{width}" height="56" rx="28" fill="{fill}"/>'
-        f'<text x="{x}" y="{y + 9}" text-anchor="middle" fill="{text_fill}" '
-        f'font-family="IBM Plex Mono, monospace" font-size="22" font-weight="700" letter-spacing="1">{esc(label.upper())}</text>'
-    )
-
-
 NODI_RIG_JS = (Path(__file__).parent / "assets" / "nodi_rig.js").read_text(encoding="utf-8")
 
 # Spec vocabulary -> rig vocabulary (see assets/nodi_rig.js POSES / EXPRESSIONS).
@@ -173,62 +164,103 @@ def nodi_layer(x: float, y: float, scale: float, *, rim: bool) -> str:
 
 @dataclass(frozen=True)
 class Layout:
-    """Canvas zones for one scene. Templates draw only inside the content zone."""
+    """Canvas zones and type scale for one scene. Templates draw only inside the content zone."""
 
     width: int
     height: int
     portrait: bool
-    cx: float  # content zone centre x
-    rw: float  # content zone reference width (fractions are taken of this)
-    top: float  # first content row baseline
+    left: float
+    right: float
+    top: float  # content zone top
     bottom: float  # content must end above this y
-    caption_y: float
-    caption_h: float
+    caption_base: float  # baseline of the (last) caption line
+    type: dict[str, int]
     nodi: tuple[float, float, float] | None  # x, y, scale
 
-    def chars(self, base: int) -> int:
-        """Scale a full-width max-chars budget to the content zone width."""
-        return max(8, int(base * self.rw / self.width))
+    @property
+    def cx(self) -> float:
+        return (self.left + self.right) / 2
+
+    @property
+    def usable(self) -> float:
+        return self.right - self.left
+
+    def chars(self, size: float, width: float | None = None, em: float = 0.56) -> int:
+        """How many characters of *size* px fit in *width* (default: content width)."""
+        return max(6, int((width or self.usable) / (size * em)))
 
 
 # NODI rig artwork box (assets/nodi_rig.js): 510 x 770 units before scaling.
 NODI_W, NODI_H = 510, 770
 SHORT_SAFE_BOTTOM = 0.80  # keep important info out of the bottom 20% (platform UI)
 
+# 9:16 is the primary format: big type that reads on a phone at arm's length.
+TYPE_PORTRAIT = {
+    "headline": 132, "term": 100, "supporting": 46, "body": 44, "node": 42,
+    "label": 38, "caption": 56, "number": 40,
+}  # fmt: skip
+TYPE_LANDSCAPE = {
+    "headline": 104, "term": 84, "supporting": 40, "body": 36, "node": 34,
+    "label": 32, "caption": 48, "number": 34,
+}  # fmt: skip
+
 
 def compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
     portrait = height > width
     if portrait:
-        cap_h = 190
-        caption_y = height * SHORT_SAFE_BOTTOM - 40 - cap_h
+        # Content y=200..1450; one-line captions sit on a baseline just above the
+        # bottom-20% platform-UI zone (1536 on a 1920 canvas).
+        caption_base = height * SHORT_SAFE_BOTTOM - 21
+        left, right, top, bottom = 64, width - 64, 200, caption_base - 65
         nodi = None
         if mascot_on:
             scale = 0.56
-            nodi = (width - 64 - NODI_W * scale, caption_y - 24 - NODI_H * scale, scale)
+            nodi = (right - NODI_W * scale, bottom - NODI_H * scale, scale)
         return Layout(
-            width, height, True, width / 2, width, 265, caption_y - 40, caption_y, cap_h, nodi
+            width, height, True, left, right, top, bottom, caption_base, TYPE_PORTRAIT, nodi
         )
-    cap_h = 150
-    caption_y = height - 290
-    top, bottom = 185, caption_y - 30
+    caption_base = height - 90
+    left, right, top, bottom = 96, width - 96, 140, caption_base - 110
     if mascot_on:
         scale = 0.50
-        column = 380
-        nodi = (width - 64 - NODI_W * scale, (top + bottom) / 2 - NODI_H * scale / 2, scale)
-        left, right = 64, width - column
+        nodi = (width - 72 - NODI_W * scale, (top + bottom) / 2 - NODI_H * scale / 2, scale)
         return Layout(
-            width,
-            height,
-            False,
-            (left + right) / 2,
-            right - left,
-            top,
-            bottom,
-            caption_y,
-            cap_h,
-            nodi,
+            width, height, False, left, width - 420, top, bottom, caption_base, TYPE_LANDSCAPE, nodi
         )
-    return Layout(width, height, False, width / 2, width, top, bottom, caption_y, cap_h, None)
+    return Layout(
+        width, height, False, left, right, top, bottom, caption_base, TYPE_LANDSCAPE, None
+    )
+
+
+def text_block(
+    x: float,
+    y: float,
+    text: str,
+    *,
+    size: int,
+    max_chars: int,
+    gap: float = 1.15,
+    **kwargs: Any,
+) -> tuple[str, float]:
+    """svg_text plus the y where the block ends (last baseline + descent)."""
+    n = len(split_lines(text, max_chars))
+    svg = svg_text(x, y, text, size=size, max_chars=max_chars, line_gap=size * gap, **kwargs)
+    return svg, y + (n - 1) * size * gap + size * 0.28
+
+
+def pill(x: float, y: float, label: str, size: int = 38, fill: str = YELLOW,
+         text_fill: str = "#111D38") -> str:  # fmt: skip
+    """Rounded label centred on (x, y). Inter bold, not the old 22px mono."""
+    label = label.upper()
+    h = size * 1.75
+    w = len(label) * size * 0.66 + size * 1.6
+    return (
+        f'<rect x="{x - w / 2:.1f}" y="{y - h / 2:.1f}" width="{w:.1f}" height="{h:.1f}" '
+        f'rx="{h / 2:.1f}" fill="{fill}"/>'
+        f'<text x="{x}" y="{y + size * 0.36:.1f}" text-anchor="middle" fill="{text_fill}" '
+        f'font-family="{FONT_BODY}" font-size="{size}" font-weight="800" letter-spacing="1.5">'
+        f"{esc(label)}</text>"
+    )
 
 
 def _series_points(
@@ -290,96 +322,139 @@ class Elements:
 
 def template_art(scene: SceneSpec, layout: Layout) -> Elements:
     L = layout
+    T = L.type
     portrait = L.portrait
-    cx, rw, top = L.cx, L.rw, L.top
+    cx, top, bottom, usable = L.cx, L.top, L.bottom, L.usable
     prop = scene.props
     template = scene.template
     els = Elements()
+    muted = "#D8E0EF"
+
+    def headline_stack(head: str, sub: str | None, y: float, *, size: int | None = None) -> float:
+        size = size or T["headline"]
+        svg, end = text_block(
+            cx,
+            y + size * 0.8,
+            head,
+            size=size,
+            gap=1.04,
+            weight=700,
+            family=FONT_DISPLAY,
+            max_chars=L.chars(size, em=0.62),
+        )
+        els.add("headline", svg, "slide")
+        if sub:
+            sup = T["supporting"]
+            svg, end = text_block(
+                cx,
+                end + sup * 1.5,
+                sub,
+                size=sup,
+                fill=muted,
+                weight=500,
+                max_chars=L.chars(sup, usable * 0.9),
+            )
+            els.add("supporting", svg, "slide")
+        return end  # fmt: skip
 
     if template in {"title_question", "chapter_title"}:
-        els.add("chapter", pill(cx, top, str(prop.get("chapter", scene.title))))
-        headline = str(prop.get("headline", prop.get("title", scene.title)))
-        size = 94 if portrait else 86
+        y = top
         els.add(
-            "headline",
-            svg_text(cx, top + 220, headline, size=size, weight=700, family=FONT_DISPLAY,
-                     max_chars=16 if portrait else L.chars(30), line_gap=size * 1.22),
-            "slide",
-        )  # fmt: skip
-        supporting = str(prop.get("supporting_text", "Lihat lebih dekat sebelum menyimpulkan"))
-        els.add(
-            "supporting",
-            svg_text(cx, top + (500 if portrait else 330), supporting, size=32 if portrait else 30,
-                     fill="#D8E0EF", weight=500, max_chars=34 if portrait else L.chars(70)),
-            "slide",
-        )  # fmt: skip
-        rule_y = top + (590 if portrait else 400)
+            "chapter", pill(cx, y + T["label"], str(prop.get("chapter", scene.title)), T["label"])
+        )
+        y += T["label"] * 2.6
+        end = headline_stack(
+            str(prop.get("headline", prop.get("title", scene.title))),
+            str(prop.get("supporting_text", "Lihat lebih dekat sebelum menyimpulkan")),
+            y,
+        )
+        rule_y = end + 60
         els.add(
             "rule",
-            f'<path d="M{cx - 115} {rule_y} H{cx + 115}" stroke="{YELLOW}" '
-            'stroke-width="8" stroke-linecap="round"/>',
+            f'<path d="M{cx - 120} {rule_y} H{cx + 120}" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>',
             "draw",
         )
 
     elif template == "definition_card":
         term = str(prop.get("term", "Konsep"))
         definition = str(prop.get("definition", scene.purpose))
-        card_w = rw * 0.78
-        card_h = 520 if portrait else 330
-        x, y = cx - card_w / 2, top + 120
-        els.add("card", rounded_card(x, y, card_w, card_h, PAPER, 0.98, YELLOW, 0.85, 34))
-        els.add(
-            "term",
-            svg_text(cx, y + 130, term, size=68 if portrait else 64, fill="#111D38", weight=700, family=FONT_DISPLAY,
-                     max_chars=19),
-            "slide",
-        )  # fmt: skip
-        els.add(
-            "definition",
-            svg_text(cx, y + 240, definition, size=34 if portrait else 31, fill="#243D57",
-                     weight=500, max_chars=30 if portrait else L.chars(55)),
-            "slide",
-        )  # fmt: skip
-        els.add("label", pill(cx, y + card_h + 55, "KEY IDEA"))
+        pad = 56
+        x, y, w = L.left, top + 20, usable
+        term_svg, end = text_block(
+            cx,
+            y + pad + T["term"] * 0.8,
+            term,
+            size=T["term"],
+            weight=700,
+            fill="#111D38",
+            family=FONT_DISPLAY,
+            max_chars=L.chars(T["term"], w - 2 * pad, 0.6),
+        )
+        def_svg, end = text_block(
+            cx,
+            end + T["body"] * 1.6,
+            definition,
+            size=T["body"],
+            weight=500,
+            fill="#243D57",
+            max_chars=L.chars(T["body"], w - 2 * pad),
+        )
+        card_h = end - y + pad
+        els.add("card", rounded_card(x, y, w, card_h, PAPER, 0.98, YELLOW, 0.85, 40))
+        els.add("term", term_svg, "slide")
+        els.add("definition", def_svg, "slide")
+        els.add("label", pill(cx, y + card_h + 90, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
 
     elif template == "paired_trend":
         labels = prop.get("variables", ["Variabel A", "Variabel B"])
         data = prop.get("series")
-        chart_h = 340
+        label_space = T["label"] * 3
         if portrait:
-            chart_w = rw * 0.78
-            positions = [(cx - chart_w / 2, top + 65), (cx - chart_w / 2, top + 65 + chart_h + 40)]
+            gap = 40
+            chart_w = usable
+            chart_h = (bottom - top - label_space - gap) / 2
+            positions = [(L.left, top), (L.left, top + chart_h + gap)]
         else:
-            gap = 42
-            chart_w = rw * 0.39
-            positions = [(cx - chart_w - gap / 2, top + 100), (cx + gap / 2, top + 100)]
+            gap = 48
+            chart_w = (usable - gap) / 2
+            chart_h = bottom - top - label_space
+            positions = [(L.left, top), (L.left + chart_w + gap, top)]
         for i, label in enumerate(labels[:2]):
             x, y = positions[i]
             color = YELLOW if i == 0 else TEAL
             values = (
                 [float(v) for v in data[i]] if data and i < len(data) else _illustrative_series(i)
             )
-            points = _series_points(values, x, y, chart_w, chart_h)
+            title_svg, title_end = text_block(
+                x + chart_w / 2,
+                y + T["node"] * 1.6,
+                str(label),
+                size=T["node"],
+                max_chars=L.chars(T["node"], chart_w - 80),
+            )
+            plot_top = title_end + 30
+            points = _series_points(values, x, plot_top, chart_w, y + chart_h - plot_top + 40)
             path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
             els.add(
                 f"chart-{i}",
-                rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 30)
-                + svg_text(x + chart_w / 2, y + 76, str(label), size=30 if portrait else 26,
-                           max_chars=20 if portrait else 24)
-                + f'<path d="{path}" fill="none" stroke="{color}" stroke-width="9" '
-                'stroke-linecap="round" stroke-linejoin="round"/>'
-                + _dots(points, color),
+                rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 34)
+                + title_svg
+                + f'<path d="{path}" fill="none" stroke="{color}" stroke-width="12" '
+                'stroke-linecap="round" stroke-linejoin="round"/>' + _dots(points, color, r=13),
                 "draw",
-            )  # fmt: skip
-        last_y = positions[-1][1] + chart_h
-        els.add("label", pill(cx, last_y + 60, str(prop.get("data_label", "ILUSTRASI"))))
+            )
+        els.add(
+            "label",
+            pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
+        )
 
     elif template == "line_chart":
-        chart_w, chart_h = rw * 0.70, 420 if portrait else 360
-        x0 = cx - chart_w / 2
-        y0 = top + (735 if portrait else 445)
+        label_space = T["label"] * 3
+        x0, x1 = L.left + 50, L.right - 50
+        y_top, y0 = top + 80, bottom - label_space - 60
+        chart_w, chart_h = x1 - x0, y0 - y_top
         grid = "".join(
-            f'<path data-nodraw="1" d="M{x0} {y0 - i * chart_h / 3} H{x0 + chart_w}" '
+            f'<path data-nodraw="1" d="M{x0} {y0 - i * chart_h / 3:.1f} H{x1}" '
             'stroke="#FFFFFF" stroke-opacity=".14" stroke-width="2"/>'
             for i in range(4)
         )
@@ -397,41 +472,53 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
         els.add(
             "chart",
-            rounded_card(x0 - 35, y0 - chart_h - 80, chart_w + 70, chart_h + 140,
-                         "#FFFFFF", 0.06, "#FFFFFF", 0.2, 28)
+            rounded_card(
+                L.left, top, usable, bottom - label_space - top, "#FFFFFF", 0.06, "#FFFFFF", 0.2, 34
+            )
             + grid
-            + f'<path d="{path}" fill="none" stroke="{YELLOW}" stroke-width="10" '
-            'stroke-linecap="round" stroke-linejoin="round"/>',
+            + f'<path d="{path}" fill="none" stroke="{YELLOW}" stroke-width="12" '
+            'stroke-linecap="round" stroke-linejoin="round"/>' + _dots(points, YELLOW, r=13),
             "draw",
-        )  # fmt: skip
-        els.add("label", pill(cx, y0 + 105, str(prop.get("data_label", "ILUSTRASI"))))
+        )
+        els.add(
+            "label",
+            pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
+        )
 
     elif template == "scatter_regression":
-        chart_w, chart_h = rw * 0.68, 430 if portrait else 360
-        x0 = cx - chart_w / 2
-        y0 = top + (815 if portrait else 455)
+        label_space = T["label"] * 3
+        x0, x1 = L.left + 60, L.right - 50
+        y_top, y0 = top + 60, bottom - label_space - 60
+        chart_w, chart_h = x1 - x0, y0 - y_top
         pts = "".join(
             f'<circle cx="{x0 + 35 + ((i * 73) % int(max(80, chart_w - 70)))}" '
-            f'cy="{y0 - 25 - ((i * 47 + (i % 5) * 21) % int(max(90, chart_h - 50)))}" r="9" '
+            f'cy="{y0 - 25 - ((i * 47 + (i % 5) * 21) % int(max(90, chart_h - 50)))}" r="13" '
             f'fill="{BLUE if i % 3 else YELLOW}" opacity=".9" data-reveal="{i / 27:.3f}"/>'
             for i in range(28)
         )
         els.add(
             "chart",
-            rounded_card(x0 - 40, y0 - chart_h - 70, chart_w + 80, chart_h + 130,
-                         "#FFFFFF", 0.05, "#FFFFFF", 0.18, 30)
-            + f'<path d="M{x0} {y0 - chart_h} V{y0} H{x0 + chart_w}" fill="none" '
-            'stroke="#D8E0EF" stroke-opacity=".6" stroke-width="4"/>'
+            rounded_card(
+                L.left,
+                top,
+                usable,
+                bottom - label_space - top,
+                "#FFFFFF",
+                0.05,
+                "#FFFFFF",
+                0.18,
+                34,
+            )
+            + f'<path d="M{x0} {y_top} V{y0} H{x1}" fill="none" stroke="#D8E0EF" stroke-opacity=".6" stroke-width="4"/>'
             + pts,
             "draw",
-        )  # fmt: skip
+        )
         els.add(
             "trend",
-            f'<path d="M{x0 + 15} {y0 - 65} L{x0 + chart_w - 15} {y0 - chart_h + 50}" '
-            f'stroke="{CORAL}" stroke-width="7" stroke-linecap="round"/>',
+            f'<path d="M{x0 + 15} {y0 - 65} L{x1 - 15} {y_top + 50}" stroke="{CORAL}" stroke-width="9" stroke-linecap="round"/>',
             "draw",
         )
-        els.add("label", pill(cx, y0 + 105, "ILUSTRASI • TANPA ANGKA KLAIM"))
+        els.add("label", pill(cx, bottom - T["label"], "ILUSTRASI • TANPA ANGKA KLAIM", T["label"]))
 
     elif template == "causal_diagram":
         nodes = prop.get(
@@ -442,87 +529,90 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                 {"id": "y", "label": "Variabel B"},
             ],
         )
-        node_w = rw * (0.40 if portrait else 0.26)
-        node_h = 150 if portrait else 132
+        label_space = T["label"] * 3
+        node_w = usable * (0.47 if portrait else 0.36)
+        node_h = T["node"] * 4.6
+        low_y = top + (bottom - label_space - top) * 0.62 - node_h / 2
         if portrait:
-            node_pos = [
-                (cx - node_w / 2, top + 130),
-                (cx - node_w - 22, top + 620),
-                (cx + 22, top + 620),
-            ]
+            node_pos = [(cx - node_w / 2, top + 40), (L.left, low_y), (L.right - node_w, low_y)]
         else:
             node_pos = [
-                (cx - node_w / 2, top + 30),
-                (cx - node_w * 1.35, top + 330),
-                (cx + node_w * 0.35, top + 330),
+                (cx - node_w / 2, top + 10),
+                (L.left + 40, low_y),
+                (L.right - 40 - node_w, low_y),
             ]
         sx, sy = cx, node_pos[0][1] + node_h
         # Arrows are drawn first (behind the cards) but animate after their source node.
         for k, (x, y) in enumerate(node_pos[1:], start=1):
-            ex, ey = x + node_w / 2, y
+            ex, ey = x + node_w / 2, y - 6
             els.add(
                 f"arrow-{k}",
-                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 20} {ex} {ey}" '
-                f'fill="none" stroke="{YELLOW}" stroke-width="8" stroke-linecap="round"/>'
-                f'<path d="M{ex - 13} {ey - 17} L{ex} {ey} L{ex + 13} {ey - 17}" fill="none" '
-                f'stroke="{YELLOW}" stroke-width="7" stroke-linecap="round"/>',
+                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 30} {ex} {ey}" '
+                f'fill="none" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>'
+                f'<path d="M{ex - 18} {ey - 22} L{ex} {ey} L{ex + 18} {ey - 22}" fill="none" '
+                f'stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
                 "draw",
                 seq=2 * k - 1,
             )
         for idx, node in enumerate(nodes[:3]):
             x, y = node_pos[idx]
-            body = (
-                rounded_card(x, y, node_w, node_h, PAPER, 0.98,
-                             YELLOW if idx == 0 else "#FFFFFF", 0.85, 26)
-                + svg_text(x + node_w / 2, y + node_h / 2 + 12, str(node.get("label", "Node")),
-                           size=29 if portrait else 26, fill="#111D38",
-                           max_chars=17 if portrait else 25)
-            )  # fmt: skip
+            label = str(node.get("label", "Node"))
+            lines = len(split_lines(label, L.chars(T["node"], node_w - 50)))
+            text_y = y + node_h / 2 - (lines - 1) * T["node"] * 0.55 + T["node"] * 0.35
+            body = rounded_card(x, y, node_w, node_h, PAPER, 0.98,
+                                YELLOW if idx == 0 else "#FFFFFF", 0.85, 30) + svg_text(
+                x + node_w / 2, text_y, label, size=T["node"], fill="#111D38",
+                max_chars=L.chars(T["node"], node_w - 50), line_gap=T["node"] * 1.1)  # fmt: skip
             if idx == 0:  # the hidden cause breathes to keep attention on it
                 body = f'<g data-idle="pulse">{body}</g>'
             els.add(f"node-{idx}", body, seq=0 if idx == 0 else 2 * idx)
         els.add(
             "label",
             pill(
-                cx,
-                top + (950 if portrait else 530),
-                str(prop.get("data_label", "MODEL KONSEPTUAL")),
+                cx, bottom - T["label"], str(prop.get("data_label", "MODEL KONSEPTUAL")), T["label"]
             ),
             seq=10,
         )
 
     elif template == "question_link":
         labels = prop.get("labels", ["A", "?", "B"])
-        box_w = rw * 0.22 if portrait else min(rw * 0.20, 260)
-        gap = rw * 0.06
-        y = top + (435 if portrait else 150)
-        start = cx - (box_w * 1.5 + gap)
+        box_w = min(usable * 0.27, 300)
+        gap = (usable - 3 * box_w) / 2
+        y = top + (300 if portrait else 120)
         for i, label in enumerate(labels[:3]):
-            x = start + i * (box_w + gap)
+            x = L.left + i * (box_w + gap)
             fill = YELLOW if i == 1 else "#FFFFFF"
             text_fill = "#111D38" if i == 1 else PAPER
             els.add(
                 f"item-{i}",
-                f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="32" fill="{fill}" '
-                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" '
-                'stroke-width="3"/>'
-                + svg_text(x + box_w / 2, y + box_w / 2 + 20, str(label),
-                           size=68 if portrait else 60, fill=text_fill, max_chars=12),
+                f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="40" fill="{fill}" '
+                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="4"/>'
+                + svg_text(x + box_w / 2, y + box_w / 2 + T["headline"] * 0.3, str(label),
+                           size=int(T["headline"] * 0.8), fill=text_fill, weight=700,
+                           family=FONT_DISPLAY, max_chars=8),
             )  # fmt: skip
             if i < 2:
                 els.add(
                     f"link-{i}",
-                    svg_text(x + box_w + gap / 2, y + box_w / 2 + 14, "→", size=54,
-                             fill=YELLOW, max_chars=4),
+                    svg_text(
+                        x + box_w + gap / 2,
+                        y + box_w / 2 + 20,
+                        "→",
+                        size=64,
+                        fill=YELLOW,
+                        max_chars=4,
+                    ),
                     "slide",
-                )  # fmt: skip
-        els.add(
-            "supporting",
-            svg_text(cx, y + box_w + (160 if portrait else 110),
-                     str(prop.get("supporting_text", "Hubungan belum tentu sebab-akibat")),
-                     size=34, fill="#D8E0EF", max_chars=34 if portrait else L.chars(65)),
-            "slide",
-        )  # fmt: skip
+                )
+        svg, _ = text_block(
+            cx,
+            y + box_w + T["supporting"] * 2.4,
+            str(prop.get("supporting_text", "Hubungan belum tentu sebab-akibat")),
+            size=T["supporting"],
+            fill=muted,
+            max_chars=L.chars(T["supporting"], usable * 0.9),
+        )
+        els.add("supporting", svg, "slide")  # fmt: skip
 
     elif template == "takeaway":
         default_points = [
@@ -531,65 +621,55 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             "Cari bukti yang relevan",
         ]
         points = prop.get("points", default_points)[:4]
-        card_w = rw * 0.78
-        gap = 34
-        y0 = top + 120
-        limit = (L.nodi[1] - 30) if (portrait and L.nodi) else L.bottom
+        gap = 36
+        y0 = top + 40
+        limit = (L.nodi[1] - 40) if (portrait and L.nodi) else bottom
         n = max(1, len(points))
-        card_h = min(155 if portrait else 130, (limit - y0 - gap * (n - 1)) / n)
+        card_h = min(T["body"] * 4.6, (limit - y0 - gap * (n - 1)) / n)
+        num_r = T["number"] * 0.95
+        text_x0 = L.left + 40 + 2 * num_r + 32
         for i, point in enumerate(points):
             y = y0 + i * (card_h + gap)
+            lines = len(split_lines(str(point), L.chars(T["body"], L.right - text_x0 - 40)))
+            ty = y + card_h / 2 - (lines - 1) * T["body"] * 0.58 + T["body"] * 0.35
             els.add(
                 f"point-{i}",
-                rounded_card(cx - card_w / 2, y, card_w, card_h, "#FFFFFF", 0.08,
-                             YELLOW if i == 0 else "#FFFFFF", 0.35, 26)
-                + f'<circle cx="{cx - card_w / 2 + 60}" cy="{y + card_h / 2}" r="27" fill="{YELLOW}"/>'
-                + svg_text(cx - card_w / 2 + 60, y + card_h / 2 + 9, str(i + 1), size=26,
-                           fill="#111D38", max_chars=3)
-                + svg_text(cx + 15, y + card_h / 2 + 12, str(point), size=30 if portrait else 27,
-                           max_chars=32 if portrait else L.chars(56)),
+                rounded_card(L.left, y, usable, card_h, "#FFFFFF", 0.08, YELLOW if i == 0 else "#FFFFFF", 0.35, 30)
+                + f'<circle cx="{L.left + 40 + num_r}" cy="{y + card_h / 2}" r="{num_r}" fill="{YELLOW}"/>'
+                + svg_text(L.left + 40 + num_r, y + card_h / 2 + T["number"] * 0.36, str(i + 1),
+                           size=T["number"], fill="#111D38", weight=800, max_chars=3)
+                + svg_text(text_x0, ty, str(point), size=T["body"], anchor="start",
+                           max_chars=L.chars(T["body"], L.right - text_x0 - 40), line_gap=T["body"] * 1.16),
                 "slide",
             )  # fmt: skip
 
     elif template == "follow_cta":
-        els.add("badge", pill(cx, top + 90, "NEXT UP"))
-        els.add(
-            "headline",
-            svg_text(cx, top + (300 if portrait else 230),
-                     str(prop.get("headline", "Lanjutkan eksplorasi")), family=FONT_DISPLAY,
-                     size=78 if portrait else 72, max_chars=18 if portrait else L.chars(32)),
-            "slide",
-        )  # fmt: skip
-        els.add(
-            "supporting",
-            svg_text(cx, top + (540 if portrait else 360),
-                     str(prop.get("supporting_text", "Ikuti F/N untuk belajar lebih dalam")),
-                     size=32, fill="#D8E0EF", max_chars=32 if portrait else L.chars(70)),
-            "slide",
-        )  # fmt: skip
-        btn_y = top + (660 if portrait else 450)
+        els.add("badge", pill(cx, top + T["label"], "NEXT UP", T["label"]))
+        end = headline_stack(
+            str(prop.get("headline", "Lanjutkan eksplorasi")),
+            str(prop.get("supporting_text", "Ikuti F/N untuk belajar lebih dalam")),
+            top + T["label"] * 2.6,
+            size=int(T["headline"] * 0.85),
+        )
+        btn_y, bw, bh = end + 80, T["label"] * 15, T["label"] * 2.2
         els.add(
             "button",
-            f'<rect x="{cx - 210}" y="{btn_y}" width="420" height="78" rx="39" fill="{YELLOW}"/>'
-            + svg_text(cx, btn_y + 52, "F/N  •  FOLLOW FOR MORE", size=24, fill="#111D38",
-                       max_chars=30),
-        )  # fmt: skip
+            f'<rect x="{cx - bw / 2}" y="{btn_y}" width="{bw}" height="{bh}" rx="{bh / 2}" fill="{YELLOW}"/>'
+            + svg_text(
+                cx,
+                btn_y + bh / 2 + T["label"] * 0.36,
+                "F/N  •  FOLLOW FOR MORE",
+                size=T["label"],
+                fill="#111D38",
+                weight=800,
+                max_chars=40,
+            ),
+        )
 
     else:
         # Generic scene fallback keeps the template registry extensible.
-        els.add("badge", pill(cx, top, scene.title))
-        els.add(
-            "headline",
-            svg_text(cx, top + 250, scene.title, size=76 if portrait else 72,
-                     max_chars=18 if portrait else L.chars(34)),
-            "slide",
-        )  # fmt: skip
-        els.add(
-            "supporting",
-            svg_text(cx, top + 440, scene.purpose, size=32, fill="#D8E0EF", weight=500,
-                     max_chars=32 if portrait else L.chars(70)),
-            "slide",
-        )  # fmt: skip
+        els.add("badge", pill(cx, top + T["label"], scene.title, T["label"]))
+        headline_stack(scene.title, scene.purpose, top + T["label"] * 2.6)
 
     return els
 
@@ -742,6 +822,37 @@ def font_face_css() -> str:
     return "".join(rules)
 
 
+CAPTION_MIN_SIZE = 46
+CAPTION_MAX_WORDS = 5
+
+
+def caption_fit(text: str, layout: Layout) -> tuple[int, list[str]]:
+    """Caption size and lines: shrink (down to CAPTION_MIN_SIZE) to stay on one line."""
+    size = layout.type["caption"]
+    while size > CAPTION_MIN_SIZE and len(text) > layout.chars(size, em=0.55):
+        size -= 2
+    return size, split_lines(text, layout.chars(size, em=0.55))
+
+
+def caption_warnings(spec: EpisodeSpec) -> list[str]:
+    """Authoring lint: portrait captions should be short single-line chunks."""
+    warnings: list[str] = []
+    layout = compute_layout(spec.meta.width, spec.meta.height, False)
+    for scene in spec.scenes:
+        for i, cap in enumerate(scene.captions):
+            words = len(cap.text.split())
+            _, lines = caption_fit(cap.text, layout)
+            if layout.portrait and words > CAPTION_MAX_WORDS:
+                warnings.append(
+                    f"{scene.id} caption {i}: {words} words (max {CAPTION_MAX_WORDS}) — split it"
+                )
+            if len(lines) > 1:
+                warnings.append(
+                    f"{scene.id} caption {i}: wraps to {len(lines)} lines — shorten or split"
+                )
+    return warnings
+
+
 def highlight_line(line: str, highlighted: list[str]) -> str:
     """Escape a caption line and wrap highlighted phrases in a yellow tspan."""
     if not highlighted:
@@ -789,24 +900,22 @@ def build_scene_html(
             # varies the talking-gesture schedule from scene to scene (still deterministic)
             "gestureSeed": next((i for i, s in enumerate(spec.scenes) if s.id == scene.id), 0),
         }
-    caption_y = layout.caption_y
-    cap_h = layout.caption_h
     caps = []
     for idx, cap in enumerate(timing_scene.get("captions", [])):
-        cap_text = str(cap["text"])
-        size = 42 if portrait else 34
-        maxc = 29 if portrait else 64
-        lines = split_lines(cap_text, maxc)
+        cap_size, lines = caption_fit(str(cap["text"]), layout)
         highlighted = [str(h) for h in cap.get("highlight", []) if str(h)]
+        gap = cap_size * 1.12
+        first = layout.caption_base - (len(lines) - 1) * gap  # grows upward, never into the UI zone
         tspans = "".join(
-            f'<tspan x="{cx}" dy="{0 if i == 0 else size * 1.15}">'
-            f"{highlight_line(line, highlighted)}</tspan>"
+            f'<tspan x="{cx}" dy="{0 if i == 0 else gap}">{highlight_line(line, highlighted)}</tspan>'
             for i, line in enumerate(lines)
         )
+        # Borderless caption: heavy text with a dark outline (paint-order) for legibility.
         caps.append(
-            f'<g id="caption-{idx}" opacity="0"><rect x="{cx - width * 0.43}" y="{caption_y}" width="{width * 0.86}" height="{cap_h}" rx="32" fill="#080F20" fill-opacity=".94" stroke="{YELLOW}" stroke-opacity=".62" stroke-width="3"/>'
-            f'<text x="{cx}" y="{caption_y + cap_h / 2 - (len(lines) - 1) * size * 0.57 + size * 0.35}" text-anchor="middle" fill="{PAPER}" '
-            f'font-family="Inter, sans-serif" font-size="{size}" font-weight="750" letter-spacing="-.8">{tspans}</text></g>'
+            f'<g id="caption-{idx}" opacity="0"><text x="{cx}" y="{first:.1f}" text-anchor="middle" '
+            f'fill="{PAPER}" stroke="#0B1428" stroke-width="{cap_size * 0.2:.1f}" stroke-linejoin="round" '
+            f'paint-order="stroke" font-family="{FONT_BODY}" font-size="{cap_size}" font-weight="800" '
+            f'letter-spacing="-.5">{tspans}</text></g>'
         )
     captions_json = json.dumps(timing_scene.get("captions", []), ensure_ascii=False)
     # deterministic decor: no wall clock, no CSS animation, all movement comes from render(t).
