@@ -86,6 +86,10 @@ def _parser() -> argparse.ArgumentParser:
         "preview", help="Render contact sheet without requiring generated audio"
     )
     preview.add_argument("spec", type=Path)
+    motion = sub.add_parser("motion", help="Measure per-second motion of a rendered MP4")
+    motion.add_argument("spec", type=Path)
+    motion.add_argument("--video", type=Path, default=None, help="Defaults to the latest render")
+    motion.add_argument("--threshold", type=float, default=None)
     render = sub.add_parser(
         "render", help="Render final MP4 from generated voice.wav and timing.json"
     )
@@ -168,6 +172,36 @@ def _ensure_timing(
     )
 
 
+def _run_motion(spec: EpisodeSpec, out: Path, video: Path | None, threshold: float | None) -> int:
+    from fnvideo.qa.motion import DEFAULT_THRESHOLD, measure_video
+
+    if video is None:
+        candidates = [out / "final.mp4", out / "final.silent-draft.mp4"]
+        existing = [c for c in candidates if c.exists()]
+        if not existing:
+            raise SystemExit(f"No rendered video in {out}. Run `fnvideo render` first.")
+        video = max(existing, key=lambda c: c.stat().st_mtime)
+    report = measure_video(
+        video,
+        spec.meta.width,
+        spec.meta.height,
+        spec.meta.fps,
+        out / "motion.json",
+        threshold=DEFAULT_THRESHOLD if threshold is None else threshold,
+        holds=_motion_holds(spec, out),
+    )
+    values = " ".join(f"{v:.2f}" for v in report["per_second"])
+    print(f"Motion per second: {values}")
+    print(f"mean={report['mean']} min={report['min']} low_seconds={report['low_seconds']}")
+    print(("PASS" if report["passed"] else "FAIL") + f": threshold {report['threshold']}")
+    return 0 if report["passed"] else 1
+
+
+def _motion_holds(spec: EpisodeSpec, out: Path) -> list[tuple[float, float]]:
+    """Absolute windows of intentional holds declared in the spec (none yet)."""
+    return []
+
+
 def main() -> None:
     args = _parser().parse_args()
     settings = load_settings()
@@ -237,7 +271,7 @@ def main() -> None:
             print(f"Voice preview written: {path}")
             return
 
-    if args.command in {"validate", "plan", "tts", "preview", "render", "build"}:
+    if args.command in {"validate", "plan", "tts", "preview", "render", "build", "motion"}:
         spec = _spec_or_exit(args.spec)
         if args.command == "validate":
             print(f"VALID: {spec.meta.id} — {spec.meta.title}")
@@ -281,6 +315,8 @@ def main() -> None:
                 )
             )
             return
+        if args.command == "motion":
+            raise SystemExit(_run_motion(spec, out, args.video, args.threshold))
         if args.command == "render":
             if spec.editorial_status != "approved" and not args.allow_draft:
                 raise SystemExit(
