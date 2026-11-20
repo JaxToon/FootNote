@@ -254,6 +254,10 @@ SHORT_SAFE_BOTTOM = 0.80  # keep important info out of the bottom 20% (platform 
 # Measured rig geometry (artwork units): body centre x, feet incl. shadow, head y 31..343.
 NODI_CENTER_X, NODI_FEET_Y, NODI_TOP_Y = 255, 756, 31
 NODI_PORTRAIT_SCALE = 1.2
+NODI_SIDE_SCALE = (
+    0.78  # NODI yields to concrete side icons (clarity rule 1; NODI must not dominate)
+)
+SIDE_ICON_SIZE = 240.0
 NODI_SLIDE_SECONDS = 0.5
 HEADLINE_MIN = 110
 DISPLAY_CAP_EM = 0.66  # Space Grotesk bold caps average advance (em), measured conservatively
@@ -555,9 +559,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         if side:
             if portrait and L.nodi:
                 _, ny, ns = L.nodi
-                size, ycen = 190.0, ny + 125 * ns  # beside NODI's head, above gesture height
-                xs = [L.left + 130, L.right - 130]
-                label_w = 250.0
+                size, ycen = SIDE_ICON_SIZE, ny + 150 * ns  # beside NODI's head
+                xs = [L.left + size / 2 + 6, L.right - size / 2 - 6]
+                label_w = size + 40
             else:
                 size = max(140.0, min(260.0, (bottom - rule_y - T["node"] * 3) * 0.8))
                 ycen = rule_y + 50 + size / 2
@@ -610,7 +614,24 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         els.add("card", rounded_card(x, y, w, card_h, PAPER, 0.98, YELLOW, 0.85, 40))
         els.add("term", term_svg, "slide")
         els.add("definition", def_svg, "slide")
-        els.add("label", pill(cx, y + card_h + 90, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
+        label_y = y + card_h + 90
+        els.add("label", pill(cx, label_y, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
+        if prop.get("icon"):  # the episode's concrete instance of the term (clarity rule 6)
+            free = bottom - (label_y + T["label"] * 1.6)
+            size = max(160.0, min(420.0, free - (T["node"] * 2.2 if prop.get("icon_label") else 0)))
+            icy = label_y + T["label"] * 1.6 + size / 2 + 10
+            body = f'<g data-idle="bob">{icon(str(prop["icon"]), cx, icy, size)}</g>'
+            if prop.get("icon_label"):
+                body += svg_text(
+                    cx,
+                    icy + size / 2 + T["node"] * 1.2,
+                    str(prop["icon_label"]),
+                    size=T["node"],
+                    fill=th.ink,
+                    weight=700,
+                    max_chars=L.chars(T["node"]),
+                )
+            els.add("icon", body)
 
     elif template == "paired_trend":
         # One plot, two lines: "moving together" reads at a glance. Each line's icon rides
@@ -751,7 +772,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     term_y + T["body"] * 1.5,
                     str(item.get("definition", "")),
                     size=T["body"],
-                    fill=muted,
+                    fill=th.ink,  # content, not secondary (clarity rule 9)
                     weight=600,
                     max_chars=L.chars(T["body"], usable * 0.92),
                 )
@@ -779,7 +800,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     term_y + T["body"] * 1.5,
                     str(item.get("definition", "")),
                     size=T["body"],
-                    fill=muted,
+                    fill=th.ink,
                     weight=600,
                     max_chars=L.chars(T["body"], col),
                 )
@@ -1377,7 +1398,7 @@ def build_scene_html(
     brand_size = 28 if portrait else 24
     mascot_on = scene.character.mascot == "on"
     # NODI steps down a size when concrete icons stand beside it (9:16 side_icons).
-    side_scale = 0.95 if (scene.props.get("side_icons") and height > width) else None
+    side_scale = NODI_SIDE_SCALE if (scene.props.get("side_icons") and height > width) else None
     layout = compute_layout(width, height, mascot_on, scene.background, side_scale)
     th = layout.th
     els = template_art(scene, layout)

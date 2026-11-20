@@ -179,15 +179,18 @@ scenes:
     template: "definition_card"
     props:
       term: "CONFOUNDER"
-      definition: "Faktor tersembunyi yang memengaruhi dua hal sekaligus, sehingga keduanya terlihat berhubungan. Di sini: cuaca panas."
+      definition: "Faktor tersembunyi yang memengaruhi dua hal sekaligus."
       data_label: "ISTILAH"
+      icon: sun
+      icon_label: "Di sini: cuaca panas"
     duration_hint_seconds: 3.6
     beats:
       - {at: 0.0, target: card, action: pop}
       - {at: 0.05, target: definition, action: slide}
       - {at: "word:confounder", target: term, action: pop}
       - {at: "word:confounder", target: term, action: highlight}
-      - {at: 0.85, target: label, action: pop}
+      - {at: "word:tersembunyi", target: icon, action: pop}
+      - {at: "word:confounder", target: label, action: pop}
 
   - id: difference
     title: "Bedanya, pakai contoh"

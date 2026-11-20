@@ -58,3 +58,21 @@ def test_pearson_r() -> None:
 def test_word_cue_ignores_punctuation() -> None:
     t, _ = _word_start("Bukan.", "Bukan. Ada faktor ketiga.", 4.0, None)
     assert t == 0.0
+
+
+def test_definition_card_icon_ties_term_to_example() -> None:
+    from fnvideo.render.svg_scene import compute_layout, template_art
+    from fnvideo.services.spec_loader import load_episode_spec
+
+    spec = load_episode_spec(SPEC)
+    scene = next(s for s in spec.scenes if s.template == "definition_card")
+    els = template_art(scene, compute_layout(1080, 1920, False, scene.background))
+    assert "icon" in els.seq and "Di sini" in els.html()
+
+
+def test_nodi_yields_to_side_icons_in_portrait() -> None:
+    from fnvideo.render.svg_scene import NODI_PORTRAIT_SCALE, NODI_SIDE_SCALE, compute_layout
+
+    assert NODI_SIDE_SCALE < NODI_PORTRAIT_SCALE
+    lay = compute_layout(1080, 1920, True, "paper", nodi_scale=NODI_SIDE_SCALE)
+    assert lay.nodi is not None and lay.nodi[2] == NODI_SIDE_SCALE
