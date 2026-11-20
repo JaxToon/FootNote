@@ -443,6 +443,20 @@ def label_card(
     return svg, y + h
 
 
+def fit_size(text: str, size: int, width: float, em: float, floor: float = 0.8) -> int:
+    """Largest size <= *size* (down to floor*size) at which *text* fits *width* on one line."""
+    fitted = int(width / max(1, len(text)) / em)
+    return max(int(size * floor), min(size, fitted))
+
+
+def chart_conclusion(els: Elements, prop: dict[str, Any], x: float, y: float) -> None:
+    """Optional "so what" pill for any chart template (clarity rule 8)."""
+    if prop.get("conclusion"):
+        th = els.theme
+        els.add("conclusion", pill(x, y, str(prop["conclusion"]), els.label_size,
+                                   fill=th.accent, text_fill=PAPER))  # fmt: skip
+
+
 class Elements:
     """Collects template elements. Each element is one animatable unit with a data-id.
 
@@ -450,7 +464,9 @@ class Elements:
     `seq` its default stagger order (defaults to insertion order, i.e. z-order).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, theme: Theme = THEME_DARK, label_size: int = 38) -> None:
+        self.theme = theme
+        self.label_size = label_size
         self.parts: list[str] = []
         self.seq: dict[str, float] = {}
         self.anim: dict[str, str] = {}
@@ -476,7 +492,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
     cx, top, bottom, usable = L.cx, L.top, L.bottom, L.usable
     prop = scene.props
     template = scene.template
-    els = Elements()
+    els = Elements(L.th, T["label"])
     th = L.th
     muted = th.muted
 
@@ -758,18 +774,17 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                 term_y = y + size + T["term"] * 0.95
                 idle = "bob" if i == 0 else "sway"  # icons keep living after they land
                 body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), cx, y + size / 2 + 10, size)}</g>'
-                body += svg_text(
-                    cx,
-                    term_y,
-                    str(item.get("term", "")),
-                    size=T["term"],
-                    weight=700,
-                    family=FONT_DISPLAY,
-                    max_chars=L.chars(T["term"], em=0.64),
-                )
+                term = str(item.get("term", ""))
+                # shrink a long term to stay on one line (never below 80% of the scale)
+                tsize = fit_size(term, T["term"], usable * 0.96, DISPLAY_CAP_EM)
+                term_svg, term_end = text_block(
+                    cx, term_y, term, size=tsize, weight=700, family=FONT_DISPLAY,
+                    max_chars=L.chars(tsize, usable * 0.96, DISPLAY_CAP_EM), gap=1.02,
+                )  # fmt: skip
+                body += term_svg
                 d_svg, _ = text_block(
                     cx,
-                    term_y + T["body"] * 1.5,
+                    term_end + T["body"] * 1.3,
                     str(item.get("definition", "")),
                     size=T["body"],
                     fill=th.ink,  # content, not secondary (clarity rule 9)
@@ -786,18 +801,17 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                 term_y = top + size + T["term"]
                 idle = "bob" if i == 0 else "sway"
                 body = f'<g data-idle="{idle}">{icon(str(item.get("icon", "chart")), ccx, top + size / 2, size)}</g>'
-                body += svg_text(
-                    ccx,
-                    term_y,
-                    str(item.get("term", "")),
-                    size=T["term"],
-                    weight=700,
-                    family=FONT_DISPLAY,
-                    max_chars=L.chars(T["term"], col, 0.64),
-                )
+                term = str(item.get("term", ""))
+                # shrink a long term to stay on one line (never below 80% of the scale)
+                tsize = fit_size(term, T["term"], col, DISPLAY_CAP_EM)
+                term_svg, term_end = text_block(
+                    ccx, term_y, term, size=tsize, weight=700, family=FONT_DISPLAY,
+                    max_chars=L.chars(tsize, col, DISPLAY_CAP_EM), gap=1.02,
+                )  # fmt: skip
+                body += term_svg
                 d_svg, _ = text_block(
                     ccx,
-                    term_y + T["body"] * 1.5,
+                    term_end + T["body"] * 1.3,
                     str(item.get("definition", "")),
                     size=T["body"],
                     fill=th.ink,
@@ -1062,6 +1076,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             'stroke-linecap="round" stroke-linejoin="round"/>' + _dots(points, YELLOW, r=13),
             "draw",
         )
+        chart_conclusion(els, prop, x0 + chart_w * 0.32, y_top + 20)
         els.add(
             "label",
             pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
@@ -1090,6 +1105,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             f'<path d="M{x0 + 15} {y0 - 65} L{x1 - 15} {y_top + 50}" stroke="{CORAL}" stroke-width="9" stroke-linecap="round"/>',
             "draw",
         )
+        chart_conclusion(els, prop, x0 + (x1 - x0) * 0.32, y_top + 30)
         els.add("label", pill(cx, bottom - T["label"], "ILUSTRASI • TANPA ANGKA KLAIM", T["label"]))
 
     elif template == "takeaway":

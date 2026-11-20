@@ -31,8 +31,12 @@ def _rules(spec) -> set[str]:
     return {i.rule for i in check_clarity(spec)}
 
 
-def test_pilot_short_is_clarity_clean() -> None:
-    assert check_clarity(_short()) == []
+@pytest.mark.parametrize("name", ["short.yaml", "long.yaml"])
+def test_pilot_specs_are_clarity_clean(name: str) -> None:
+    spec = load_episode_spec(SHORT.with_name(name))
+    assert check_clarity(spec) == []
+    text = SHORT.with_name(name).read_text(encoding="utf-8").casefold()
+    assert "kulit terbakar" not in text  # sunburn example retired (clarity rule 7)
 
 
 def test_normalize_ignores_case_and_punctuation() -> None:
@@ -98,3 +102,11 @@ def test_tts_refuses_unclear_approved_spec_before_any_api_call(tmp_path, monkeyp
     monkeypatch.setattr(pipeline, "ElevenLabsClient", no_client)
     with pytest.raises(ClarityGateError):
         pipeline.generate_tts(spec, tmp_path, load_settings())
+
+
+def test_fit_size_keeps_terms_on_one_line() -> None:
+    from fnvideo.render.svg_scene import fit_size
+
+    assert fit_size("SAMA PANAS", 84, 900, 0.66) == 84
+    assert fit_size("HUBUNGAN HILANG", 84, 700, 0.66) < 84
+    assert fit_size("X" * 80, 84, 300, 0.66) == int(84 * 0.8)  # never below the floor

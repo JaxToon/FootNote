@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 meta:
   id: fondasi-01-korelasi-bukan-kausalitas-long
   title: "Korelasi Bukan Kausalitas"
@@ -16,87 +16,439 @@ voice:
   speed: 1.0
 editorial_status: draft
 sources: []
+# Long v2 — same example and clarity rules as the short (CLAUDE.md "Clarity rules",
+# docs/HANDOFF_CLARITY.md). Chapter structure kept:
+#   1 problem → 2 intuition → 3 mechanism → 4 real-world example → 5 common mistakes → 6 recap
+# DRAFT OUTLINE-LEVEL SCRIPT (~3 min). It is NOT yet the 8–12 min deliverable; each chapter
+# needs expansion and fact-checking before editorial approval. All data is illustrative.
 scenes:
-  - id: opening
-    title: "Opening"
-    purpose: "Membangun pertanyaan utama dan menjanjikan pembahasan."
-    narration: "Kita sering melihat dua hal bergerak bersama lalu langsung menyimpulkan bahwa salah satunya menyebabkan yang lain. Di video ini, kita bedah kenapa kesimpulan itu belum tentu benar."
+  # ── 1 · MASALAH ────────────────────────────────────────────────────────────
+  - id: hook
+    title: "Fakta aneh"
+    purpose: "Fakta konkret yang terdengar aneh: dua hal naik bersamaan."
+    narration: "Tahu nggak? Saat penjualan es krim naik, kasus orang tenggelam juga ikut naik."
     captions:
-      - text: "Korelasi bukan kausalitas"
-        highlight: ["bukan"]
-    character:
-      presenter: "off"
-      mascot: "on"
-      mascot_pose: "curious"
-      mascot_outfit: "classic"
-      expression: "curious"
-    background: "navy"
-    template: "chapter_title"
+      - text: "Tahu nggak?"
+      - text: "Saat penjualan es krim naik,"
+        highlight: ["es krim"]
+      - text: "kasus orang tenggelam"
+        highlight: ["tenggelam"]
+      - text: "juga ikut naik."
+        highlight: ["ikut naik"]
+    character: {presenter: "off", mascot: "on", mascot_pose: "wave", expression: "happy"}
+    background: "paper"
+    template: "title_question"
     props:
-      chapter: "01"
-      headline: "KORELASI ≠ KAUSALITAS"
-    duration_hint_seconds: 15.0
-    source_notes: []
-  - id: intuition
-    title: "Intuisi dan contoh"
-    purpose: "Membuat korelasi terasa konkret melalui contoh ilustratif."
-    narration: "Contoh yang sering dipakai adalah penjualan es krim dan kasus kulit terbakar matahari. Keduanya bisa meningkat pada periode yang sama. Namun, itu belum menjelaskan hubungan sebab-akibat."
+      chapter: "1 · Masalah"
+      headline: "FAKTA ANEH"
+      side_icons:
+        - {icon: ice_cream, label: "Es krim", trend: up}
+        - {icon: swimmer, label: "Tenggelam", trend: up}
+    duration_hint_seconds: 5.5
+    beats:
+      - {at: 0.02, target: headline, action: slide}
+      - {at: "word:es", target: side-0, action: pop}
+      - {at: "word:tenggelam", target: side-1, action: pop}
+      - {at: "word:ikut", target: rule, action: draw}
+      - {at: "word:ikut", target: nodi, action: "expr:surprised"}
+
+  - id: tempting
+    title: "Kesimpulan menggoda"
+    purpose: "Menyuarakan lompatan logika yang keliru, tanpa menjawabnya."
+    narration: "Banyak orang langsung menyimpulkan: es krim penyebabnya. Tapi, benarkah begitu?"
     captions:
-      - text: "Dua variabel bergerak bersama"
-      - text: "Hubungan belum membuktikan sebab-akibat"
-    character:
-      presenter: "off"
-      mascot: "off"
-    background: "purple"
+      - text: "Banyak orang langsung menyimpulkan:"
+      - text: "es krim penyebabnya."
+        highlight: ["penyebabnya"]
+      - text: "Tapi, benarkah begitu?"
+        highlight: ["benarkah"]
+    character: {presenter: "off", mascot: "on", mascot_pose: "shrug", expression: "skeptical"}
+    background: "yellow"
+    template: "title_question"
+    props:
+      headline: "ES KRIM → TENGGELAM?"
+      side_icons:
+        - {icon: ice_cream}
+        - {icon: swimmer}
+    duration_hint_seconds: 5.0
+    beats:
+      - {at: 0.02, target: headline, action: pop}
+      - {at: "word:es", target: side-0, action: pop}
+      - {at: "word:penyebabnya", target: side-1, action: pop}
+      - {at: "word:benarkah", target: headline, action: highlight}
+      - {at: "word:benarkah", target: rule, action: draw}
+
+  # ── 2 · INTUISI ────────────────────────────────────────────────────────────
+  - id: data
+    title: "Datanya"
+    purpose: "Memperlihatkan dua variabel yang bergerak bersama, dengan r terhitung."
+    narration: "Mari kita lihat datanya. Dari Januari sampai Juni, dua garis ini naik hampir bersamaan."
+    captions:
+      - text: "Mari kita lihat datanya."
+        highlight: ["datanya"]
+      - text: "Dari Januari sampai Juni,"
+      - text: "dua garis ini naik"
+      - text: "hampir bersamaan."
+        highlight: ["bersamaan"]
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
     template: "paired_trend"
     props:
-      variables: ["Penjualan es krim", "Kasus kulit terbakar matahari"]
+      variables: ["Penjualan es krim", "Kasus tenggelam"]
+      icons: [ice_cream, swimmer]
+      series:
+        - [30, 38, 52, 70, 86, 95]
+        - [9, 12, 14, 21, 22, 28]
+      x_labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
+      conclusion: "Naik bareng!"
+      show_r: true
       data_label: "Ilustrasi"
-    duration_hint_seconds: 35.0
+    duration_hint_seconds: 7.0
     source_notes:
-      - "Contoh ilustratif; perlu referensi jika dipresentasikan sebagai temuan empiris."
-  - id: confounding
-    title: "Variabel perancu"
-    purpose: "Menjelaskan faktor ketiga yang dapat memengaruhi dua variabel."
-    narration: "Cuaca panas dapat meningkatkan penjualan es krim dan juga meningkatkan paparan sinar matahari. Faktor ketiga seperti ini disebut variabel perancu dalam konteks diagram kausal sederhana."
+      - "Data ilustratif; r dihitung dari angka di spec, bukan statistik faktual."
+    beats:
+      - {at: 0.02, target: axes, action: draw}
+      - {at: "word:Januari", target: chart-0, action: draw, duration: 1.6}
+      - {at: "word:garis", target: chart-1, action: draw, duration: 1.6}
+      - {at: "word:bersamaan", target: conclusion, action: pop}
+      - {at: 0.85, target: r, action: pop}
+      - {at: 0.92, target: label, action: pop}
+
+  - id: name-correlation
+    title: "Korelasi"
+    purpose: "Memberi nama pada pola yang barusan terlihat, terikat pada contohnya."
+    narration: "Pola seperti ini disebut korelasi: dua hal yang naik atau turun bersamaan."
     captions:
-      - text: "Faktor ketiga dapat memengaruhi keduanya"
-        highlight: ["Faktor ketiga"]
-    character:
-      presenter: "off"
-      mascot: "off"
-    background: "teal"
+      - text: "Pola seperti ini disebut korelasi:"
+        highlight: ["korelasi"]
+      - text: "dua hal yang naik"
+      - text: "atau turun bersamaan."
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "definition_card"
+    props:
+      term: "KORELASI"
+      definition: "Dua hal yang naik atau turun bersamaan."
+      data_label: "ISTILAH"
+      icon: together
+      icon_label: "Di sini: es krim & tenggelam"
+    duration_hint_seconds: 5.5
+    beats:
+      - {at: 0.0, target: card, action: pop}
+      - {at: "word:korelasi", target: term, action: pop}
+      - {at: "word:korelasi", target: label, action: pop}
+      - {at: "word:dua", target: definition, action: slide}
+      - {at: 0.02, target: icon, action: pop}
+      - {at: "word:turun", target: icon, action: highlight}
+
+  - id: strong-not-cause
+    title: "Kuat belum tentu sebab"
+    purpose: "Memisahkan kekuatan hubungan dari sebab-akibat."
+    narration: "Hubungannya sangat kuat. Tapi kuat belum tentu berarti yang satu menyebabkan yang lain."
+    captions:
+      - text: "Hubungannya sangat kuat."
+        highlight: ["kuat"]
+      - text: "Tapi kuat belum tentu berarti"
+      - text: "yang satu menyebabkan"
+        highlight: ["menyebabkan"]
+      - text: "yang lain."
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "question_link"
+    props:
+      labels:
+        - {label: "Hubungan kuat", icon: together}
+        - {icon: question}
+        - {label: "Sebab-akibat?", icon: domino}
+      supporting_text: "Kuat ≠ menyebabkan"
+    duration_hint_seconds: 6.5
+    beats:
+      - {at: 0.02, target: item-0, action: pop}
+      - {at: "word:belum", target: link-0, action: slide}
+      - {at: "word:belum", target: item-1, action: pop}
+      - {at: "word:menyebabkan", target: link-1, action: slide}
+      - {at: "word:menyebabkan", target: item-2, action: pop}
+      - {at: 0.88, target: supporting, action: pop}
+
+  # ── 3 · MEKANISME ──────────────────────────────────────────────────────────
+  - id: hidden-factor
+    title: "Faktor ketiga"
+    purpose: "Mencoret hubungan yang diasumsikan, lalu menggambar penyebab sebenarnya."
+    narration: "Lalu apa yang sebenarnya terjadi? Bukan es krim. Ada faktor ketiga: cuaca panas. Saat panas, orang beli es krim, dan lebih banyak yang berenang."
+    captions:
+      - text: "Lalu apa yang sebenarnya terjadi?"
+      - text: "Bukan es krim."
+        highlight: ["Bukan"]
+      - text: "Ada faktor ketiga:"
+        highlight: ["faktor ketiga"]
+      - text: "cuaca panas."
+        highlight: ["panas"]
+      - text: "Saat panas,"
+      - text: "orang beli es krim,"
+        highlight: ["es krim"]
+      - text: "dan lebih banyak yang berenang."
+        highlight: ["berenang"]
+    character: {presenter: "off", mascot: "off"}
+    background: "navy"
     template: "causal_diagram"
     props:
       nodes:
-        - id: weather
-          label: "Cuaca panas"
-        - id: ice_cream
-          label: "Penjualan es krim"
-        - id: sunburn
-          label: "Paparan matahari"
+        - {id: weather, label: "Cuaca panas", icon: sun}
+        - {id: ice_cream, label: "Beli es krim", icon: ice_cream}
+        - {id: swim, label: "Lebih banyak berenang", icon: swimmer}
+      false_link: true
       data_label: "Ilustrasi"
-    duration_hint_seconds: 45.0
-    source_notes: []
-  - id: recap
-    title: "Recap"
-    purpose: "Merangkum batas interpretasi korelasi dan mengarahkan ke episode berikutnya."
-    narration: "Korelasi berguna untuk menemukan pola dan membangun pertanyaan. Tetapi klaim kausal membutuhkan desain penelitian, asumsi, dan bukti yang sesuai. Jadi, saat melihat dua tren bergerak bersama, pertanyaan berikutnya bukan hanya seberapa kuat hubungannya, tetapi apa lagi yang mungkin menjelaskannya."
+    duration_hint_seconds: 10.5
+    beats:
+      - {at: 0.0, target: node-1, action: pop}
+      - {at: 0.0, target: node-2, action: pop}
+      - {at: 0.03, target: false-link, action: draw}
+      - {at: "word:Bukan", target: false-x, action: pop}
+      - {at: "word:cuaca", target: node-0, action: pop}
+      - {at: "word:beli", target: arrow-1, action: draw}
+      - {at: "word:beli", target: node-1, action: highlight}
+      - {at: "word:berenang", target: arrow-2, action: draw}
+      - {at: "word:berenang", target: node-2, action: highlight}
+      - {at: 0.95, target: label, action: pop}
+
+  - id: name-confounder
+    title: "Confounder"
+    purpose: "Memberi nama pada faktor ketiga, terikat pada contohnya."
+    narration: "Faktor tersembunyi seperti ini disebut confounder, atau variabel perancu."
     captions:
-      - text: "Korelasi membantu menemukan pola"
-      - text: "Klaim kausal membutuhkan bukti"
-        highlight: ["membutuhkan bukti"]
-    character:
-      presenter: "off"
-      mascot: "on"
-      mascot_pose: "explaining"
-      mascot_outfit: "classic"
-      expression: "thoughtful"
-    background: "navy_dark"
-    template: "takeaway"
+      - text: "Faktor tersembunyi seperti ini"
+      - text: "disebut confounder,"
+        highlight: ["confounder"]
+      - text: "atau variabel perancu."
+        highlight: ["perancu"]
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "definition_card"
     props:
-      points:
-        - "Gunakan korelasi untuk menemukan pola"
-        - "Jangan menyimpulkan sebab-akibat tanpa bukti"
-    duration_hint_seconds: 45.0
-    source_notes: []
+      term: "CONFOUNDER"
+      definition: "Faktor tersembunyi yang memengaruhi dua hal sekaligus."
+      data_label: "ISTILAH"
+      icon: sun
+      icon_label: "Di sini: cuaca panas"
+    duration_hint_seconds: 5.5
+    beats:
+      - {at: 0.0, target: card, action: pop}
+      - {at: 0.05, target: definition, action: slide}
+      - {at: "word:tersembunyi", target: icon, action: pop}
+      - {at: "word:confounder", target: term, action: pop}
+      - {at: "word:confounder", target: label, action: pop}
+      - {at: "word:perancu", target: term, action: highlight}
+
+  - id: check-it
+    title: "Cara mengecek"
+    purpose: "Satu cara sederhana menguji dugaan confounder."
+    narration: "Cara mengeceknya: bandingkan hari-hari yang sama panasnya. Kalau hubungannya hilang, cuaca panaslah penyebabnya."
+    captions:
+      - text: "Cara mengeceknya:"
+      - text: "bandingkan hari-hari"
+        highlight: ["bandingkan"]
+      - text: "yang sama panasnya."
+      - text: "Kalau hubungannya hilang,"
+        highlight: ["hilang"]
+      - text: "cuaca panaslah penyebabnya."
+        highlight: ["penyebabnya"]
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "compare"
+    props:
+      items:
+        - {icon: thermometer, term: "SAMA PANAS", definition: "Bandingkan hari dengan suhu yang sama"}
+        - {icon: magnifier, term: "HUBUNGAN HILANG", definition: "Es krim tak lagi terkait tenggelam"}
+      divider: "LALU"
+    duration_hint_seconds: 8.0
+    source_notes:
+      - "Ilustrasi logika stratifikasi, bukan hasil studi."
+    beats:
+      - {at: 0.02, target: side-0, action: pop}
+      - {at: "word:bandingkan", target: side-0, action: highlight}
+      - {at: "word:Kalau", target: vs, action: pop}
+      - {at: "word:hilang", target: side-1, action: slide}
+      - {at: "word:penyebabnya", target: side-1, action: highlight}
+
+  # ── 4 · CONTOH NYATA ───────────────────────────────────────────────────────
+  - id: work-example
+    title: "Contoh di dunia kerja"
+    purpose: "Pola yang sama di konteks yang dekat dengan audiens."
+    narration: "Misalnya di sebuah kantor, karyawan yang sering ikut pelatihan, gajinya lebih tinggi."
+    captions:
+      - text: "Misalnya di sebuah kantor,"
+      - text: "karyawan yang sering ikut pelatihan,"
+        highlight: ["pelatihan"]
+      - text: "gajinya lebih tinggi."
+        highlight: ["lebih tinggi"]
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "title_question"
+    props:
+      chapter: "4 · Contoh nyata"
+      headline: "DI DUNIA KERJA"
+      side_icons:
+        - {icon: book, label: "Pelatihan", trend: up}
+        - {icon: coin, label: "Gaji", trend: up}
+    duration_hint_seconds: 6.0
+    source_notes:
+      - "Skenario hipotetis untuk ilustrasi; bukan klaim tentang perusahaan nyata."
+    beats:
+      - {at: 0.02, target: headline, action: slide}
+      - {at: "word:pelatihan", target: side-0, action: pop}
+      - {at: "word:gajinya", target: side-1, action: pop}
+      - {at: "word:tinggi", target: rule, action: draw}
+
+  - id: work-confounder
+    title: "Faktor ketiga di kantor"
+    purpose: "Menerapkan logika confounder ke contoh dunia kerja."
+    narration: "Apakah pelatihan pasti menaikkan gaji? Belum tentu. Bisa jadi faktornya jabatan: karyawan senior lebih sering dikirim pelatihan, dan gajinya memang lebih tinggi."
+    captions:
+      - text: "Apakah pelatihan pasti menaikkan gaji?"
+      - text: "Belum tentu."
+        highlight: ["Belum tentu"]
+      - text: "Bisa jadi faktornya jabatan:"
+        highlight: ["jabatan"]
+      - text: "karyawan senior lebih sering"
+      - text: "dikirim pelatihan,"
+      - text: "dan gajinya memang lebih tinggi."
+    character: {presenter: "off", mascot: "off"}
+    background: "navy"
+    template: "causal_diagram"
+    props:
+      nodes:
+        - {id: seniority, label: "Jabatan senior", icon: briefcase}
+        - {id: training, label: "Lebih sering pelatihan", icon: book}
+        - {id: salary, label: "Gaji lebih tinggi", icon: coin}
+      false_link: true
+      data_label: "Ilustrasi"
+    duration_hint_seconds: 10.5
+    beats:
+      - {at: 0.0, target: node-1, action: pop}
+      - {at: 0.0, target: node-2, action: pop}
+      - {at: 0.03, target: false-link, action: draw}
+      - {at: "word:Belum", target: false-x, action: pop}
+      - {at: "word:jabatan", target: node-0, action: pop}
+      - {at: "word:dikirim", target: arrow-1, action: draw}
+      - {at: "word:dikirim", target: node-1, action: highlight}
+      - {at: "word:gajinya", target: arrow-2, action: draw}
+      - {at: "word:gajinya", target: node-2, action: highlight}
+      - {at: 0.95, target: label, action: pop}
+
+  # ── 5 · KESALAHAN UMUM ─────────────────────────────────────────────────────
+  - id: mistake-reverse
+    title: "Kesalahan 1: arah terbalik"
+    purpose: "Menunjukkan bahwa arah sebab-akibat bisa terbalik."
+    narration: "Kesalahan pertama: lupa arah sebaliknya. Bisa jadi gaji tinggi yang membuat orang mampu ikut pelatihan."
+    captions:
+      - text: "Kesalahan pertama:"
+        highlight: ["pertama"]
+      - text: "lupa arah sebaliknya."
+        highlight: ["sebaliknya"]
+      - text: "Bisa jadi gaji tinggi"
+      - text: "yang membuat orang mampu"
+      - text: "ikut pelatihan."
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "question_link"
+    props:
+      labels:
+        - {label: "Gaji tinggi", icon: coin}
+        - {icon: question}
+        - {label: "Ikut pelatihan", icon: book}
+      supporting_text: "Arahnya bisa terbalik"
+    duration_hint_seconds: 7.5
+    beats:
+      - {at: 0.02, target: item-0, action: pop}
+      - {at: "word:gaji", target: item-0, action: highlight}
+      - {at: "word:membuat", target: link-0, action: slide}
+      - {at: "word:membuat", target: item-1, action: pop}
+      - {at: "word:pelatihan", target: link-1, action: slide}
+      - {at: "word:pelatihan", target: item-2, action: pop}
+      - {at: 0.9, target: supporting, action: pop}
+
+  - id: mistake-chance
+    title: "Kesalahan 2: kebetulan"
+    purpose: "Data sedikit bisa memunculkan pola palsu."
+    narration: "Kesalahan kedua: menganggap kebetulan sebagai pola. Dengan data sedikit, dua hal acak pun bisa terlihat berhubungan."
+    captions:
+      - text: "Kesalahan kedua:"
+        highlight: ["kedua"]
+      - text: "menganggap kebetulan sebagai pola."
+        highlight: ["kebetulan"]
+      - text: "Dengan data sedikit,"
+      - text: "dua hal acak pun"
+      - text: "bisa terlihat berhubungan."
+    character: {presenter: "off", mascot: "off"}
+    background: "deep_blue"
+    template: "scatter_regression"
+    props:
+      conclusion: "Bisa cuma kebetulan"
+    duration_hint_seconds: 8.0
+    source_notes:
+      - "Titik-titik ilustratif; tidak ada angka yang diklaim."
+    beats:
+      - {at: 0.02, target: chart, action: draw, duration: 2.0}
+      - {at: "word:berhubungan", target: trend, action: draw}
+      - {at: "word:berhubungan", target: conclusion, action: pop}
+      - {at: 0.94, target: label, action: pop}
+
+  - id: mistake-strong
+    title: "Kesalahan 3: kuat berarti sebab"
+    purpose: "Menegaskan bahwa korelasi sekuat apa pun bukan bukti sebab-akibat."
+    narration: "Kesalahan ketiga: mengira korelasi kuat pasti sebab-akibat. Sekuat apa pun, tetap perlu dicek faktor ketiganya."
+    captions:
+      - text: "Kesalahan ketiga:"
+        highlight: ["ketiga"]
+      - text: "mengira korelasi kuat"
+      - text: "pasti sebab-akibat."
+        highlight: ["sebab-akibat"]
+      - text: "Sekuat apa pun,"
+      - text: "tetap perlu dicek faktor ketiganya."
+        highlight: ["faktor ketiganya"]
+    character: {presenter: "off", mascot: "off"}
+    background: "paper"
+    template: "compare"
+    props:
+      items:
+        - {icon: together, term: "KORELASI KUAT", definition: "Es krim & tenggelam naik bareng"}
+        - {icon: magnifier, term: "BELUM BUKTI", definition: "Cek dulu: ada cuaca panas di baliknya"}
+      divider: "TAPI"
+    duration_hint_seconds: 8.0
+    beats:
+      - {at: 0.02, target: side-0, action: pop}
+      - {at: "word:korelasi", target: side-0, action: highlight}
+      - {at: "word:Sekuat", target: vs, action: pop}
+      - {at: "word:dicek", target: side-1, action: slide}
+      - {at: "word:ketiganya", target: side-1, action: highlight}
+
+  # ── 6 · RANGKUMAN ──────────────────────────────────────────────────────────
+  - id: recap
+    title: "Rangkuman"
+    purpose: "Satu kebiasaan yang bisa langsung dipakai penonton."
+    narration: "Jadi, korelasi membantu kita menemukan pola. Tapi sebelum bilang A menyebabkan B, cari dulu faktor ketiganya."
+    captions:
+      - text: "Jadi, korelasi membantu kita"
+      - text: "menemukan pola."
+        highlight: ["pola"]
+      - text: "Tapi sebelum bilang"
+      - text: "A menyebabkan B,"
+      - text: "cari dulu faktor ketiganya."
+        highlight: ["faktor ketiganya"]
+    character: {presenter: "off", mascot: "on", mascot_pose: "explaining", expression: "thinking"}
+    background: "coral"
+    template: "title_question"
+    props:
+      chapter: "6 · Rangkuman"
+      headline: "CARI FAKTOR KETIGANYA"
+      side_icons:
+        - {icon: magnifier, label: "Cari"}
+        - {icon: sun, label: "Faktor ketiga"}
+    duration_hint_seconds: 8.0
+    beats:
+      - {at: 0.03, target: headline, action: slide}
+      - {at: "word:pola", target: side-0, action: pop}
+      - {at: "word:cari", target: side-1, action: pop}
+      - {at: "word:cari", target: rule, action: draw}
+      - {at: "word:cari", target: nodi, action: "pose:cheer"}
+      - {at: "word:cari", target: nodi, action: "expr:excited"}
