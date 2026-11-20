@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9", "ruff>=0.6,<1", "mypy>=1.10,<2"]
+dev = ["pytest>=8,<9", "ruff>=0.6,<1", "mypy>=1.10,<2", "fonttools>=4.50,<5"]
 
 [project.scripts]
 fnvideo = "fnvideo.cli:main"
@@ -28,7 +28,7 @@ fnvideo = "fnvideo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fnvideo = ["render/assets/*.js"]
+fnvideo = ["render/assets/*.js", "render/assets/fonts/*.ttf", "render/assets/fonts/*.txt", "render/assets/fonts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

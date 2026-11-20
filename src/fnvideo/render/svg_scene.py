@@ -63,21 +63,42 @@ def svg_text(
     fill: str = PAPER,
     weight: int = 700,
     anchor: str = "middle",
-    family: str = "Inter, Arial, sans-serif",
+    family: str = "Inter, sans-serif",
     max_chars: int = 22,
     line_gap: float | None = None,
 ) -> str:
     lines = split_lines(text, max_chars)
     gap = line_gap or size * 1.18
     tspans = "".join(
-        f'<tspan x="{x}" dy="{0 if i == 0 else gap}">{esc(line)}</tspan>'
+        f'<tspan x="{x}" dy="{0 if i == 0 else gap}">{symbol_placeholders(esc(line))}</tspan>'
         for i, line in enumerate(lines)
     )
-    return (
+    node = (
         f'<text x="{x}" y="{y}" fill="{fill}" font-family="{family}" '
         f'font-size="{size}" font-weight="{weight}" text-anchor="{anchor}" '
         f'letter-spacing="-1">{tspans}</text>'
     )
+    count = sum(line.count(ch) for line in lines for ch in DRAWN_SYMBOLS)
+    if not count:
+        return node
+    # One path per drawn symbol; render(t) positions it from the placeholder's glyph box.
+    paths = "".join(
+        f'<path data-sym-path="1" data-nodraw="1" fill="{YELLOW}"/>' for _ in range(count)
+    )
+    return f'<g data-sym-size="{size}">{node}{paths}</g>'
+
+
+# Symbols drawn as SVG instead of font glyphs (display fonts render them too small/thin).
+# Each becomes an invisible placeholder glyph of similar width in the text run.
+DRAWN_SYMBOLS = {"≠": "neq"}
+
+
+def symbol_placeholders(escaped_line: str) -> str:
+    for ch, name in DRAWN_SYMBOLS.items():
+        escaped_line = escaped_line.replace(
+            ch, f'<tspan data-sym="{name}" fill-opacity="0">M</tspan>'
+        )
+    return escaped_line
 
 
 def rounded_card(
@@ -281,7 +302,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         size = 94 if portrait else 86
         els.add(
             "headline",
-            svg_text(cx, top + 220, headline, size=size, weight=800,
+            svg_text(cx, top + 220, headline, size=size, weight=700, family=FONT_DISPLAY,
                      max_chars=16 if portrait else L.chars(30), line_gap=size * 1.22),
             "slide",
         )  # fmt: skip
@@ -309,7 +330,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         els.add("card", rounded_card(x, y, card_w, card_h, PAPER, 0.98, YELLOW, 0.85, 34))
         els.add(
             "term",
-            svg_text(cx, y + 130, term, size=68 if portrait else 64, fill="#111D38", weight=800,
+            svg_text(cx, y + 130, term, size=68 if portrait else 64, fill="#111D38", weight=700, family=FONT_DISPLAY,
                      max_chars=19),
             "slide",
         )  # fmt: skip
@@ -535,7 +556,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         els.add(
             "headline",
             svg_text(cx, top + (300 if portrait else 230),
-                     str(prop.get("headline", "Lanjutkan eksplorasi")),
+                     str(prop.get("headline", "Lanjutkan eksplorasi")), family=FONT_DISPLAY,
                      size=78 if portrait else 72, max_chars=18 if portrait else L.chars(32)),
             "slide",
         )  # fmt: skip
@@ -695,6 +716,32 @@ def grain_layer(width: int, height: int) -> str:
     return f'<defs>{patterns}</defs><g id="grain" pointer-events="none">{rects}</g>'
 
 
+FONT_DIR = Path(__file__).parent / "assets" / "fonts"
+FONT_DISPLAY = "Space Grotesk, sans-serif"
+FONT_BODY = "Inter, sans-serif"
+FONT_MONO = "IBM Plex Mono, monospace"
+# Unmodified OFL font files (see assets/fonts/README.md). Embedded as data URIs because
+# scene pages are loaded with set_content (about:blank), where file:// URLs are blocked.
+FONT_FACES = (
+    ("Space Grotesk", "SpaceGrotesk[wght].ttf", "300 700"),
+    ("Inter", "Inter[opsz,wght].ttf", "100 900"),
+    ("IBM Plex Mono", "IBMPlexMono-Regular.ttf", "400"),
+    ("IBM Plex Mono", "IBMPlexMono-Bold.ttf", "700"),
+)
+
+
+@lru_cache(maxsize=1)
+def font_face_css() -> str:
+    rules = []
+    for family, filename, weight in FONT_FACES:
+        data = base64.b64encode((FONT_DIR / filename).read_bytes()).decode("ascii")
+        rules.append(
+            f"@font-face{{font-family:'{family}';src:url(data:font/ttf;base64,{data}) "
+            f"format('truetype');font-weight:{weight};font-display:block}}"
+        )
+    return "".join(rules)
+
+
 def highlight_line(line: str, highlighted: list[str]) -> str:
     """Escape a caption line and wrap highlighted phrases in a yellow tspan."""
     if not highlighted:
@@ -759,7 +806,7 @@ def build_scene_html(
         caps.append(
             f'<g id="caption-{idx}" opacity="0"><rect x="{cx - width * 0.43}" y="{caption_y}" width="{width * 0.86}" height="{cap_h}" rx="32" fill="#080F20" fill-opacity=".94" stroke="{YELLOW}" stroke-opacity=".62" stroke-width="3"/>'
             f'<text x="{cx}" y="{caption_y + cap_h / 2 - (len(lines) - 1) * size * 0.57 + size * 0.35}" text-anchor="middle" fill="{PAPER}" '
-            f'font-family="Inter, Arial, sans-serif" font-size="{size}" font-weight="750" letter-spacing="-.8">{tspans}</text></g>'
+            f'font-family="Inter, sans-serif" font-size="{size}" font-weight="750" letter-spacing="-.8">{tspans}</text></g>'
         )
     captions_json = json.dumps(timing_scene.get("captions", []), ensure_ascii=False)
     # deterministic decor: no wall clock, no CSS animation, all movement comes from render(t).
@@ -773,6 +820,7 @@ def build_scene_html(
       html,body{{margin:0;width:{width}px;height:{height}px;background:{bg};overflow:hidden}}
       svg{{display:block;width:{width}px;height:{height}px}}
       text{{font-synthesis:none}}
+      {font_face_css()}
     </style></head><body><svg id="frame" xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
       <defs>
         <radialGradient id="bgGlow" cx="50%" cy="42%" r="75%" gradientUnits="objectBoundingBox"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".10"/><stop offset="1" stop-color="#000000" stop-opacity=".10"/></radialGradient>
@@ -783,8 +831,8 @@ def build_scene_html(
       </defs>
       <rect width="100%" height="100%" fill="{bg}"/><rect width="100%" height="100%" fill="url(#bgGlow)"/><rect width="100%" height="100%" fill="url(#grid)"/>
       <g id="decor">{decor}</g>
-      <g id="brand"><text x="64" y="{brand_size + 40}" fill="{YELLOW}" font-family="Space Grotesk, Arial, sans-serif" font-size="{brand_size + 14}" font-weight="800">F/N</text>
-        <text x="145" y="{brand_size + 39}" fill="{PAPER}" opacity=".92" font-family="Space Grotesk, Arial, sans-serif" font-size="{brand_size - 4}" font-weight="700" letter-spacing="2">FOOTNOTE</text>
+      <g id="brand"><text x="64" y="{brand_size + 40}" fill="{YELLOW}" font-family="Space Grotesk, sans-serif" font-size="{brand_size + 14}" font-weight="800">F/N</text>
+        <text x="145" y="{brand_size + 39}" fill="{PAPER}" opacity=".92" font-family="Space Grotesk, sans-serif" font-size="{brand_size - 4}" font-weight="700" letter-spacing="2">FOOTNOTE</text>
         <text x="{width - 64}" y="{brand_size + 36}" fill="{PAPER}" opacity=".58" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="20" letter-spacing="2">{series}</text>
         <path d="M64 {brand_size + 61} H{width - 64}" stroke="#FFFFFF" stroke-opacity=".16" stroke-width="2"/></g>
       <g id="scene-art">{art}</g>
@@ -850,6 +898,20 @@ def build_scene_html(
       const grainTiles = [...document.querySelectorAll('[data-grain]')];
       const idleNodes = [...document.querySelectorAll('[data-idle]')];
       const grid = document.getElementById('grid'), glow = document.getElementById('bgGlow');
+      function placeSymbols() {{
+        document.querySelectorAll('[data-sym-size]').forEach((g) => {{
+          const size = Number(g.dataset.symSize), slots = g.querySelectorAll('[data-sym]'), paths = g.querySelectorAll('[data-sym-path]');
+          slots.forEach((slot, i) => {{
+            const p = slot.getStartPositionOfChar(0), w = slot.getComputedTextLength();
+            const cx = p.x + w / 2, cy = p.y - 0.36 * size, half = 0.30 * size, bar = 0.085 * size, gap = 0.13 * size;
+            const rect = (y) => `M${{cx - half}} ${{y - bar / 2}}h${{2 * half}}v${{bar}}h${{-2 * half}}z`;
+            // slash as a thin parallelogram from lower-left to upper-right
+            const sx = 0.16 * size, sy = 0.36 * size, sw = 0.05 * size;
+            const slash = `M${{cx - sx - sw}} ${{cy + sy}}L${{cx + sx - sw}} ${{cy - sy}}L${{cx + sx + sw}} ${{cy - sy}}L${{cx - sx + sw}} ${{cy + sy}}z`;
+            if (paths[i]) paths[i].setAttribute('d', rect(cy - gap) + rect(cy + gap) + slash);
+          }});
+        }});
+      }}
       function secondaryMotion(t) {{
         // Background drift: grid slides diagonally, glow wanders (both pure functions of t).
         grid.setAttribute('patternTransform', `translate(${{(t * 14) % 72}} ${{(t * 9) % 72}})`);
@@ -870,7 +932,9 @@ def build_scene_html(
           else if (kind === 'sway') n.setAttribute('transform', `rotate(${{Math.sin(t * 1.7) * 4}} ${{cx}} ${{cy}})`);
         }}
       }}
-      window.render = function(t, mouth='smile') {{
+      window.render = function(t, mouth='smile', init=false) {{
+        if (!init && document.fonts.status !== 'loaded') throw new Error('brand fonts not loaded');
+        placeSymbols();
         secondaryMotion(t);
         for (const [e, node] of nodes) if (node) animateElement(e, node, t);
         const ml=document.getElementById('mascot-layer');
@@ -903,6 +967,6 @@ def build_scene_html(
           if(active) el.setAttribute('transform',`translate(0 ${{(1-enter)*14}})`);
         }});
       }};
-      window.render(0);
+      window.render(0, 'smile', true);
     }})();
     </script></body></html>'''

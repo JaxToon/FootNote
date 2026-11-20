@@ -56,6 +56,12 @@ Choose Data Analyst or Data Scientist roadmap later; the pipeline remains series
 ### D-016 — Reference quality benchmark
 The actual prior reference MP4 must be placed in `references/quality_benchmark/` or supplied to the owner/agent before any claim of verified visual/audio superiority. Until then, the project uses `docs/QUALITY_BAR.md` as its target and reports only measured technical QA.
 
+### D-011a — Brand fonts bundled (2026-11-20, working default)
+Space Grotesk (display), Inter (body/captions), IBM Plex Mono (labels): unmodified OFL files in
+`src/fnvideo/render/assets/fonts/`, embedded as data URIs in scene pages (`file://` URLs are
+blocked for `set_content` pages). Not subset/renamed because IBM Plex has the Reserved Font
+Name "Plex". Symbols the display font renders poorly (currently `≠`) are drawn as SVG.
+
 ## Change procedure
 
 Add dated entries or supersede a decision with rationale. Never erase history. A recommendation is not approval.
