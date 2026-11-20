@@ -497,8 +497,9 @@ def chart_conclusion(els: Elements, prop: dict[str, Any], x: float, y: float) ->
     """Optional "so what" pill for any chart template (clarity rule 8)."""
     if prop.get("conclusion"):
         th = els.theme
+        on_accent = NAVY if th.accent == YELLOW else PAPER  # readable on its pill
         els.add("conclusion", pill(x, y, str(prop["conclusion"]), els.label_size,
-                                   fill=th.accent, text_fill=PAPER))  # fmt: skip
+                                   fill=th.accent, text_fill=on_accent))  # fmt: skip
 
 
 class Elements:
@@ -1264,7 +1265,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
     elif template == "scatter_regression":
         label_space = T["label"] * 3
         x0, x1 = L.left + 60, L.right - 50
-        y_top, y0 = top + 60, bottom - label_space - 60
+        # the conclusion gets its own row above the plot, so it never covers a point
+        concl_row = T["label"] * 2.4 if prop.get("conclusion") else 0
+        y_top, y0 = top + 60 + concl_row, bottom - label_space - 60
         chart_w, chart_h = x1 - x0, y0 - y_top
         pts = "".join(
             f'<circle cx="{x0 + 35 + ((i * 73) % int(max(80, chart_w - 70)))}" '
@@ -1284,7 +1287,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             f'<path d="M{x0 + 15} {y0 - 65} L{x1 - 15} {y_top + 50}" stroke="{CORAL}" stroke-width="9" stroke-linecap="round"/>',
             "draw",
         )
-        chart_conclusion(els, prop, x0 + (x1 - x0) * 0.32, y_top + 30)
+        chart_conclusion(els, prop, cx, top + 30 + concl_row / 2)
         els.add("label", pill(cx, bottom - T["label"], "ILUSTRASI • TANPA ANGKA KLAIM", T["label"]))
 
     elif template == "takeaway":
@@ -1762,9 +1765,21 @@ def build_scene_html(
           const target = Number(x.dataset.count), dec = Number(x.dataset.decimals || 0);
           x.textContent = (x.dataset.prefix || '') + fmtCount(en.action === 'count' ? target * easeOut(p) : target, dec) + (x.dataset.suffix || '');
         }});
+        let pulse = 0;
         for (const h of e.highlights) {{
           const q = (t - h.t) / h.dur;
-          if (q > 0 && q < 1) scale *= 1 + 0.12 * Math.sin(Math.PI * q);
+          if (q > 0 && q < 1) pulse = Math.max(pulse, Math.sin(Math.PI * q));
+        }}
+        if (node.querySelector('[data-series]')) {{
+          // chart lines: thicken the strokes; scaling the group would shift axes and labels
+          node.querySelectorAll('path[stroke-width]:not([data-nodraw])').forEach((x) => {{
+            if (!x.dataset.sw) x.dataset.sw = x.getAttribute('stroke-width');
+            x.setAttribute('stroke-width', Number(x.dataset.sw) * (1 + 0.45 * pulse));
+          }});
+        }} else if (pulse > 0) {{
+          // wide elements (cards, plots) only breathe; small ones pop
+          const wide = node.getBBox().width > {width} * 0.6;
+          scale *= 1 + (wide ? 0.03 : 0.12) * pulse;
         }}
         if (e.exit && t >= e.exit.t) {{ const q = easeOut((t - e.exit.t) / e.exit.dur); opacity *= 1 - q; scale *= 1 - 0.2 * q; }}
         node.setAttribute('opacity', opacity);

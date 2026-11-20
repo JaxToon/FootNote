@@ -144,7 +144,8 @@ scenes:
     duration_hint_seconds: 5.5
     beats:
       - {at: 0.0, target: headline, action: slide}
-      - {at: 0.0, target: card, action: pop}
+      # the card lands with its term, never empty on screen
+      - {at: "word:korelasi", target: card, action: pop}
       - {at: "word:korelasi", target: term, action: pop}
       - {at: "word:korelasi", target: label, action: pop}
       - {at: "word:dua", target: definition, action: slide}
@@ -260,6 +261,7 @@ scenes:
       - {at: "caption:1", target: definition, action: slide}
       - {at: "word:confounder", target: term, action: pop}
       - {at: "word:confounder", target: label, action: pop}
+      - {at: "word:atau", target: z, action: highlight}
       - {at: "word:perancu", target: term, action: highlight}
 
   - id: check-it
@@ -292,6 +294,7 @@ scenes:
       - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: side-0, action: pop}
       - {at: "word:bandingkan", target: side-0, action: highlight}
+      - {at: "word:panasnya", target: headline, action: highlight}
       - {at: "word:Kalau", target: vs, action: pop}
       - {at: "word:hilang", target: side-1, action: slide}
       - {at: "word:penyebabnya", target: side-1, action: highlight}
@@ -423,7 +426,9 @@ scenes:
       - "Titik-titik ilustratif; tidak ada angka yang diklaim."
     beats:
       - {at: 0.0, target: headline, action: slide}
-      - {at: 0.02, target: chart, action: draw, duration: 2.0}
+      - {at: 0.02, target: chart, action: draw, duration: 3.0}
+      - {at: "word:kebetulan", target: headline, action: highlight}
+      - {at: "word:sedikit", target: chart, action: highlight}
       - {at: "word:berhubungan", target: trend, action: draw}
       - {at: "word:berhubungan", target: conclusion, action: pop}
       - {at: 0.94, target: label, action: pop}
