@@ -93,7 +93,10 @@ def test_neq_is_drawn_as_svg_at_glyph_position() -> None:
 
     spec = load_episode_spec(ROOT / "specs/fondasi-01-korelasi-bukan-kausalitas/short.yaml")
     timing = build_estimated_timing(spec, 0.35)
-    html = build_scene_html(spec, spec.scenes[0], timing["scenes"][0], timing)
+    # Self-contained: force a headline with the drawn symbol (spec copy may change).
+    scene = spec.scenes[0]
+    scene = scene.model_copy(update={"props": {**scene.props, "headline": "KORELASI ≠ KAUSALITAS"}})
+    html = build_scene_html(spec, scene, timing["scenes"][0], timing)
     assert 'data-sym="neq"' in html and "data-sym-path" in html
     with sync_playwright() as p:
         browser = p.chromium.launch()

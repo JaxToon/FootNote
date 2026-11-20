@@ -16,17 +16,23 @@ voice:
   speed: 1.0
 editorial_status: draft
 sources: []
-# Pilot short, re-authored for motion: 7 scenes, a visual change roughly every 2 s via beats.
-# NODI appears in the hook, the question and the close; explanation scenes are full-screen.
+# Pilot short v3 — re-authored for CLARITY (see CLAUDE.md "Clarity rules" and
+# docs/HANDOFF_CLARITY.md): concrete example first, captions = narration verbatim,
+# the assumed link is drawn then crossed out, causes are drawn one arrow at a time,
+# and the definitions are tied to this episode's example.
 scenes:
   - id: hook
     title: "Hook"
-    purpose: "Membuka dengan pola yang sering disalahpahami."
-    narration: "Dua hal sering terjadi bersamaan. Kita langsung menyimpulkan yang satu menyebabkan yang lain."
+    purpose: "Fakta konkret yang terdengar aneh: dua hal naik bersamaan."
+    narration: "Tahu nggak? Saat penjualan es krim naik, kasus orang tenggelam juga ikut naik."
     captions:
-      - text: "Dua hal terjadi bersamaan"
-      - text: "Kita langsung menyimpulkan"
-        highlight: ["menyimpulkan"]
+      - text: "Tahu nggak?"
+      - text: "Saat penjualan es krim naik,"
+        highlight: ["es krim"]
+      - text: "kasus orang tenggelam"
+        highlight: ["tenggelam"]
+      - text: "juga ikut naik."
+        highlight: ["ikut naik"]
     character:
       presenter: "off"
       mascot: "on"
@@ -35,22 +41,68 @@ scenes:
     background: "paper"
     template: "title_question"
     props:
-      headline: "KORELASI ≠ KAUSALITAS"
+      headline: "FAKTA ANEH"
+      side_icons:
+        - {icon: ice_cream, label: "Es krim", trend: up}
+        - {icon: swimmer, label: "Tenggelam", trend: up}
     duration_hint_seconds: 5.0
     beats:
-      - {at: 0.05, target: headline, action: slide}
-      - {at: "caption:1", target: rule, action: draw}
-      - {at: "caption:1", target: nodi, action: "expr:curious"}
-      - {at: "caption:1", target: nodi, action: "pose:rest"}
-      - {at: 0.85, target: headline, action: highlight}
+      - {at: 0.02, target: headline, action: slide}
+      - {at: "caption:1", target: nodi, action: "pose:explaining"}
+      - {at: "word:es", target: side-0, action: pop}
+      - {at: "word:tenggelam", target: side-1, action: pop}
+      - {at: "caption:3", target: rule, action: draw}
+      - {at: "caption:3", target: side-0, action: highlight}
+      - {at: "caption:3", target: side-1, action: highlight}
+      - {at: "caption:3", target: nodi, action: "expr:surprised"}
+
+  - id: example
+    title: "Data"
+    purpose: "Memperlihatkan bahwa dua variabel bergerak bersama (korelasi)."
+    narration: "Kalau datanya kita plot, dua garis ini naik turun hampir bareng."
+    captions:
+      - text: "Kalau datanya kita plot,"
+        highlight: ["plot"]
+      - text: "dua garis ini naik turun"
+      - text: "hampir bareng."
+        highlight: ["bareng"]
+    character:
+      presenter: "off"
+      mascot: "off"
+    background: "paper"
+    template: "paired_trend"
+    props:
+      variables: ["Penjualan es krim", "Kasus tenggelam"]
+      icons: [ice_cream, swimmer]
+      series:
+        - [30, 38, 52, 70, 86, 95]
+        - [9, 12, 14, 21, 22, 28]
+      x_labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
+      conclusion: "Naik bareng!"
+      show_r: true
+      data_label: "Ilustrasi"
+    duration_hint_seconds: 4.5
+    source_notes:
+      - "Data ilustratif; r dihitung dari angka di spec, bukan statistik faktual."
+    beats:
+      - {at: 0.02, target: axes, action: draw}
+      - {at: "word:plot", target: chart-0, action: draw, duration: 1.4}
+      - {at: "word:garis", target: chart-1, action: draw, duration: 1.4}
+      - {at: "caption:2", target: conclusion, action: pop}
+      - {at: "caption:2", target: chart-0, action: highlight}
+      - {at: "caption:2", target: chart-1, action: highlight}
+      - {at: 0.82, target: r, action: pop}
+      - {at: 0.9, target: label, action: pop}
 
   - id: question
-    title: "Pertanyaan"
-    purpose: "Menantang asumsi sebab-akibat."
-    narration: "Tapi, benarkah begitu?"
+    title: "Kesimpulan menggoda"
+    purpose: "Menyuarakan lompatan logika yang keliru, tanpa langsung menjawabnya."
+    narration: "Jadi... makan es krim bikin orang tenggelam?"
     captions:
-      - text: "Tapi, benarkah begitu?"
-        highlight: ["benarkah"]
+      - text: "Jadi..."
+      - text: "makan es krim bikin"
+      - text: "orang tenggelam?"
+        highlight: ["tenggelam?"]
     character:
       presenter: "off"
       mascot: "on"
@@ -59,83 +111,34 @@ scenes:
     background: "yellow"
     template: "title_question"
     props:
-      headline: "SEBAB-AKIBAT?"
-    duration_hint_seconds: 2.6
+      headline: "ES KRIM → TENGGELAM?"
+      side_icons:
+        - {icon: ice_cream}
+        - {icon: swimmer}
+    duration_hint_seconds: 3.2
     beats:
       - {at: 0.0, target: headline, action: pop}
-      - {at: 0.45, target: rule, action: draw}
-      - {at: 0.55, target: headline, action: highlight}
-
-  - id: example
-    title: "Contoh"
-    purpose: "Memperlihatkan dua variabel yang naik bersamaan."
-    narration: "Contohnya, saat penjualan es krim naik, kasus kulit terbakar matahari juga ikut naik."
-    captions:
-      - text: "Penjualan es krim naik"
-      - text: "Kulit terbakar matahari"
-      - text: "juga ikut naik"
-        highlight: ["ikut naik"]
-    character:
-      presenter: "off"
-      mascot: "off"
-    background: "paper"
-    template: "paired_trend"
-    props:
-      variables: ["Penjualan es krim", "Kasus kulit terbakar matahari"]
-      icons: [ice_cream, sunburn]
-      data_label: "Ilustrasi"
-    duration_hint_seconds: 6.5
-    source_notes:
-      - "Contoh ilustratif; jangan tampilkan sebagai statistik faktual."
-    beats:
-      - {at: 0.02, target: chart-0, action: draw, duration: 1.6}
-      - {at: "word:naik", target: chart-0, action: highlight}
-      - {at: "word:kulit", target: chart-1, action: draw, duration: 1.6}
-      - {at: "caption:2", target: chart-1, action: highlight}
-      - {at: "caption:2", target: chart-0, action: highlight}
-      - {at: 0.85, target: label, action: pop}
-
-  - id: tempting
-    title: "Kesimpulan menggoda"
-    purpose: "Menunjukkan lompatan logika yang keliru."
-    narration: "Apakah es krim membuat kulit terbakar? Tentu tidak."
-    captions:
-      - text: "Es krim bikin kulit terbakar?"
-        highlight: ["?"]
-      - text: "Tentu tidak."
-        highlight: ["tidak"]
-    character:
-      presenter: "off"
-      mascot: "off"
-    background: "paper"
-    template: "question_link"
-    props:
-      labels:
-        - {label: "Es krim", icon: ice_cream}
-        - {icon: question}
-        - {label: "Kulit terbakar", icon: sunburn}
-      supporting_text: "Bersamaan ≠ menyebabkan"
-    duration_hint_seconds: 4.2
-    beats:
-      - {at: 0.02, target: item-0, action: pop}
-      - {at: "word:membuat", target: link-0, action: slide}
-      - {at: "word:membuat", target: item-1, action: pop}
-      - {at: "word:kulit", target: link-1, action: slide}
-      - {at: "word:kulit", target: item-2, action: pop}
-      - {at: "caption:1", target: supporting, action: pop}
-      - {at: "caption:1", target: item-1, action: highlight}
+      - {at: "word:es", target: side-0, action: pop}
+      - {at: "word:tenggelam", target: side-1, action: pop}
+      - {at: 0.8, target: rule, action: draw}
+      - {at: 0.8, target: headline, action: highlight}
 
   - id: hidden-factor
     title: "Faktor ketiga"
-    purpose: "Menjelaskan variabel perancu sebagai penjelasan alternatif."
-    narration: "Ternyata ada faktor ketiga: cuaca panas. Cuaca panas membuat orang membeli es krim, sekaligus berjemur lebih lama di bawah matahari."
+    purpose: "Mencoret hubungan yang diasumsikan, lalu menggambar penyebab sebenarnya."
+    narration: "Bukan. Ada faktor ketiga: cuaca panas. Saat panas, orang beli es krim, dan lebih banyak yang berenang."
     captions:
-      - text: "Ada faktor ketiga"
+      - text: "Bukan."
+        highlight: ["Bukan"]
+      - text: "Ada faktor ketiga:"
         highlight: ["faktor ketiga"]
-      - text: "Cuaca panas"
+      - text: "cuaca panas."
         highlight: ["panas"]
-      - text: "Orang membeli es krim"
-      - text: "sekaligus berjemur lebih lama"
+      - text: "Saat panas,"
+      - text: "orang beli es krim,"
+        highlight: ["es krim"]
+      - text: "dan lebih banyak yang berenang."
+        highlight: ["berenang"]
     character:
       presenter: "off"
       mascot: "off"
@@ -144,28 +147,60 @@ scenes:
     props:
       nodes:
         - {id: weather, label: "Cuaca panas", icon: sun}
-        - {id: ice_cream, label: "Penjualan es krim", icon: ice_cream}
-        - {id: sunburn, label: "Kulit terbakar matahari", icon: sunburn}
+        - {id: ice_cream, label: "Beli es krim", icon: ice_cream}
+        - {id: swim, label: "Lebih banyak berenang", icon: swimmer}
+      false_link: true
       data_label: "Ilustrasi"
-    duration_hint_seconds: 8.5
+    duration_hint_seconds: 8.0
     beats:
-      - {at: 0.02, target: node-0, action: pop}
-      - {at: "word:cuaca", target: node-0, action: highlight}
-      - {at: "caption:2", target: arrow-1, action: draw}
-      - {at: "word:es", target: node-1, action: pop}
-      - {at: "word:sekaligus", target: arrow-2, action: draw}
-      - {at: "word:berjemur", target: node-2, action: pop}
-      - {at: 0.9, target: label, action: pop}
+      - {at: 0.0, target: node-1, action: pop}
+      - {at: 0.0, target: node-2, action: pop}
+      - {at: 0.02, target: false-link, action: draw}
+      - {at: "word:Bukan", target: false-x, action: pop}
+      - {at: "caption:2", target: node-0, action: pop}
+      - {at: "word:beli", target: arrow-1, action: draw}
+      - {at: "word:beli", target: node-1, action: highlight}
+      - {at: "word:berenang", target: arrow-2, action: draw}
+      - {at: "word:berenang", target: node-2, action: highlight}
+      - {at: 0.94, target: label, action: pop}
+
+  - id: name-it
+    title: "Istilah"
+    purpose: "Memberi nama pada faktor ketiga, setelah penonton paham konsepnya."
+    narration: "Faktor tersembunyi seperti ini disebut confounder."
+    captions:
+      - text: "Faktor tersembunyi seperti ini"
+      - text: "disebut confounder."
+        highlight: ["confounder"]
+    character:
+      presenter: "off"
+      mascot: "off"
+    background: "paper"
+    template: "definition_card"
+    props:
+      term: "CONFOUNDER"
+      definition: "Faktor tersembunyi yang memengaruhi dua hal sekaligus, sehingga keduanya terlihat berhubungan. Di sini: cuaca panas."
+      data_label: "ISTILAH"
+    duration_hint_seconds: 3.6
+    beats:
+      - {at: 0.0, target: card, action: pop}
+      - {at: 0.05, target: definition, action: slide}
+      - {at: "word:confounder", target: term, action: pop}
+      - {at: "word:confounder", target: term, action: highlight}
+      - {at: 0.85, target: label, action: pop}
 
   - id: difference
-    title: "Bedanya"
-    purpose: "Merumuskan beda korelasi dan kausalitas."
-    narration: "Korelasi artinya dua hal bergerak bersama. Kausalitas artinya yang satu benar-benar menyebabkan yang lain."
+    title: "Bedanya, pakai contoh"
+    purpose: "Membedakan korelasi dan kausalitas dengan contoh episode ini."
+    narration: "Es krim dan tenggelam cuma berkorelasi. Penyebab sebenarnya: cuaca panas."
     captions:
-      - text: "Korelasi: bergerak bersama"
-        highlight: ["Korelasi"]
-      - text: "Kausalitas: yang satu menyebabkan"
-        highlight: ["Kausalitas"]
+      - text: "Es krim dan tenggelam"
+      - text: "cuma berkorelasi."
+        highlight: ["berkorelasi"]
+      - text: "Penyebab sebenarnya:"
+        highlight: ["Penyebab"]
+      - text: "cuaca panas."
+        highlight: ["panas"]
     character:
       presenter: "off"
       mascot: "off"
@@ -173,24 +208,25 @@ scenes:
     template: "compare"
     props:
       items:
-        - {term: "KORELASI", definition: "Dua hal bergerak bersama", icon: together}
-        - {term: "KAUSALITAS", definition: "Yang satu menyebabkan yang lain", icon: domino}
-    duration_hint_seconds: 6.5
+        - {icon: together, term: "KORELASI", definition: "Es krim & tenggelam naik bareng"}
+        - {icon: sun, term: "KAUSALITAS", definition: "Cuaca panas → lebih banyak yang berenang"}
+      divider: "BEDA"
+    duration_hint_seconds: 5.0
     beats:
-      - {at: 0.02, target: side-0, action: pop}
-      - {at: "word:bergerak", target: side-0, action: highlight}
-      - {at: "caption:1", target: vs, action: pop}
-      - {at: "caption:1", target: side-1, action: slide}
-      - {at: "word:benar-benar", target: side-1, action: highlight}
-      - {at: 0.9, target: vs, action: highlight}
+      - {at: 0.0, target: side-0, action: pop}
+      - {at: "caption:1", target: side-0, action: highlight}
+      - {at: "caption:2", target: vs, action: pop}
+      - {at: "caption:2", target: side-1, action: slide}
+      - {at: "caption:3", target: side-1, action: highlight}
 
   - id: close
     title: "Penutup"
-    purpose: "Memberi aturan praktis yang mudah diingat."
-    narration: "Jadi, sebelum menyimpulkan sebab-akibat, cari dulu faktor ketiganya."
+    purpose: "Satu kebiasaan yang bisa langsung dipakai penonton."
+    narration: "Jadi, sebelum bilang A menyebabkan B, cari dulu faktor ketiganya."
     captions:
-      - text: "Sebelum menyimpulkan sebab-akibat"
-      - text: "cari faktor ketiganya!"
+      - text: "Jadi, sebelum bilang"
+      - text: "A menyebabkan B,"
+      - text: "cari dulu faktor ketiganya."
         highlight: ["faktor ketiganya"]
     character:
       presenter: "off"
@@ -201,11 +237,10 @@ scenes:
     template: "title_question"
     props:
       headline: "CARI FAKTOR KETIGANYA"
-    duration_hint_seconds: 5.0
+    duration_hint_seconds: 4.4
     beats:
-      - {at: 0.03, target: headline, action: slide}
-      - {at: 0.3, target: nodi, action: "expr:curious"}
-      - {at: "caption:1", target: rule, action: draw}
-      - {at: "caption:1", target: nodi, action: "pose:cheer"}
-      - {at: "caption:1", target: nodi, action: "expr:excited"}
-      - {at: 0.8, target: headline, action: highlight}
+      - {at: 0.05, target: headline, action: slide}
+      - {at: "caption:2", target: rule, action: draw}
+      - {at: "caption:2", target: headline, action: highlight}
+      - {at: "caption:2", target: nodi, action: "pose:cheer"}
+      - {at: "caption:2", target: nodi, action: "expr:excited"}

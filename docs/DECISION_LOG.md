@@ -68,6 +68,9 @@ captions), matching the NODI concept board; dark themes (`navy`, `coral`, ...) a
 contrast scenes. Background tokens added: `yellow`. Colour roles live in `Theme` objects in
 `render/svg_scene.py`, so reverting is a spec change (scene `background`), not a code change.
 
+### D-018 — Clarity rules over visual polish (2026-11-20, proposed — owner approval pending)
+The owner reviewed a render that was technically better (motion, fonts, icons) but harder to understand. Storytelling clarity rules (CLAUDE.md "Clarity rules", docs/HANDOFF_CLARITY.md) are now mandatory for every spec. The pilot uses the ice cream / drowning example (hidden cause not obvious from the outcome's name) instead of sunburn.
+
 ## Change procedure
 
 Add dated entries or supersede a decision with rationale. Never erase history. A recommendation is not approval.

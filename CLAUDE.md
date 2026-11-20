@@ -52,6 +52,21 @@ The initial engine is Python + HTML/SVG + Playwright Chromium + FFmpeg. Do not m
 - Captions must remain above the bottom 20% UI safe region in portrait videos.
 - Do not add unlicensed music, stock art, logos, icons, or fonts. Music stays off by default.
 
+## Clarity rules (storytelling) — mandatory for every spec
+
+Visual polish is not enough: the owner judged a technically better render as *harder to understand*. Every spec must pass these before TTS/render. Full rationale and the worked example: `docs/HANDOFF_CLARITY.md`.
+
+1. **Concrete before abstract.** The concrete example must be seen and heard within the first 3 seconds. The hook never shows the conclusion or the term (no "KORELASI ≠ KAUSALITAS" title up front).
+2. **NODI alone ≤ 2 s.** In the hook NODI shares the frame with concrete content (`side_icons`), never talks over an empty screen.
+3. **Captions = narration, verbatim**, split into phrases of ≤ 5 words. Never summarise or paraphrase in captions.
+4. **One visual change per spoken clause**, cued with `word:<kata>` beats: a negation ("bukan") crosses out the wrong link; naming the cause makes its icon appear; each causal link draws its own arrow on its own word.
+5. **Draw the logic.** Show the assumed link first, then cross it out (`causal_diagram` → `false_link: true`, beat `false-x`); draw true links as separate arrows.
+6. **Definitions are tied to the episode example**, never generic-only ("Di sini: cuaca panas").
+7. **Pick examples whose hidden cause is not obvious from the outcome's name** (avoid "kulit terbakar matahari" for hot weather; prefer "tenggelam/berenang").
+8. **Every chart has a "so what"**: a conclusion pill (`conclusion`) and, when series are given, a computed statistic (`show_r`).
+9. **Readable on a phone:** any text on 9:16 ≥ 40 px, no low-contrast grey for content.
+10. **Comprehension check before render:** from the contact sheet + narration, write one sentence per scene: "what the viewer understands at this point". If a scene is vague or only makes sense after the next one, revise it. The video must work muted (captions + visuals) and eyes-closed (narration only).
+
 ## Editorial and safety gates
 
 - AI-generated content is draft only. Human fact-check and script approval are mandatory before TTS/render for publication.

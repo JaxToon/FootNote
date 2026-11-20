@@ -116,7 +116,8 @@ def _word_start(
     word: str, narration: str, speech_duration: float, alignment: dict[str, Any] | None
 ) -> tuple[float, str]:
     """Start time of the first whole-word occurrence of *word*, plus its timing quality."""
-    target = word.casefold()
+    # tolerate punctuation copied from the caption ("word:Bukan." == "word:Bukan")
+    target = word.strip(".,!?:;\"'()…").casefold()
     exact = _aligned_windows(alignment, []) is not None if alignment else False
     if alignment and exact:
         joined = "".join(alignment["characters"])

@@ -269,12 +269,23 @@ TYPE_LANDSCAPE = {
 }  # fmt: skip
 
 
-def compute_layout(width: int, height: int, mascot_on: bool, background: str = "navy") -> Layout:
-    """Layout plus the theme for *background* (light paper/yellow or dark)."""
-    return replace(_compute_layout(width, height, mascot_on), th=theme_for(background))
+def compute_layout(
+    width: int,
+    height: int,
+    mascot_on: bool,
+    background: str = "navy",
+    nodi_scale: float | None = None,
+) -> Layout:
+    """Layout plus the theme for *background* (light paper/yellow or dark).
+
+    *nodi_scale* shrinks NODI in 9:16 when the scene puts content beside it (side_icons).
+    """
+    return replace(_compute_layout(width, height, mascot_on, nodi_scale), th=theme_for(background))
 
 
-def _compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
+def _compute_layout(
+    width: int, height: int, mascot_on: bool, nodi_scale: float | None = None
+) -> Layout:
     portrait = height > width
     if portrait:
         # Content y=200..1450; one-line captions sit on a baseline just above the
@@ -284,7 +295,7 @@ def _compute_layout(width: int, height: int, mascot_on: bool) -> Layout:
         nodi = None
         if mascot_on:
             # NODI is the performer: centred, feet on the content floor, head ~370px.
-            scale = NODI_PORTRAIT_SCALE
+            scale = nodi_scale or NODI_PORTRAIT_SCALE
             nodi = (width / 2 - NODI_CENTER_X * scale, bottom - NODI_FEET_Y * scale, scale)
             bottom = nodi[1] - 24  # the content band sits above NODI's head
         return Layout(
@@ -369,6 +380,16 @@ def _dots(
 
 ICON_DIR = Path(__file__).parent / "assets" / "icons"
 DEFAULT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
+
+
+def pearson_r(a: list[float], b: list[float]) -> float:
+    """Pearson correlation of two equal-length series (shown on charts; never hand-typed)."""
+    n = len(a)
+    ma, mb = sum(a) / n, sum(b) / n
+    sab = sum((x - ma) * (y - mb) for x, y in zip(a, b, strict=True))
+    sa = sum((x - ma) ** 2 for x in a) ** 0.5
+    sb = sum((y - mb) ** 2 for y in b) ** 0.5
+    return sab / (sa * sb) if sa and sb else 0.0
 
 
 def available_icons() -> list[str]:
@@ -526,6 +547,40 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             f'<path d="M{cx - 120} {rule_y} H{cx + 120}" stroke="{th.accent}" stroke-width="12" stroke-linecap="round"/>',
             "draw",
         )
+        # Concrete things on screen (clarity rule 1): two icons flanking NODI in 9:16,
+        # or a row under the headline when NODI is off / in 16:9. Elements side-0, side-1.
+        side = [i if isinstance(i, dict) else {"icon": str(i)} for i in prop.get("side_icons", [])][
+            :2
+        ]
+        if side:
+            if portrait and L.nodi:
+                _, ny, ns = L.nodi
+                size, ycen = 190.0, ny + 125 * ns  # beside NODI's head, above gesture height
+                xs = [L.left + 130, L.right - 130]
+                label_w = 250.0
+            else:
+                size = max(140.0, min(260.0, (bottom - rule_y - T["node"] * 3) * 0.8))
+                ycen = rule_y + 50 + size / 2
+                xs = [cx - usable * 0.25, cx + usable * 0.25]
+                label_w = usable * 0.45
+            for i, item in enumerate(side):
+                sx_ = xs[i] if len(side) == 2 else cx
+                idle = "bob" if i == 0 else "sway"
+                body = f'<g data-idle="{idle}">{icon(str(item["icon"]), sx_, ycen, size)}</g>'
+                if item.get("trend") == "up":
+                    body += icon("arrow_up", sx_ + size * 0.44, ycen - size * 0.36, size * 0.42)
+                if item.get("label"):
+                    svg, _ = text_block(
+                        sx_,
+                        ycen + size / 2 + T["node"] * 1.05,
+                        str(item["label"]),
+                        size=T["node"],
+                        fill=th.ink,
+                        weight=700,
+                        max_chars=L.chars(T["node"], label_w),
+                    )
+                    body += svg
+                els.add(f"side-{i}", body, "pop")
 
     elif template == "definition_card":
         term = str(prop.get("term", "Konsep"))
@@ -652,6 +707,18 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     f'fill="{color}" stroke="{outline}" stroke-width="7"/>'
                 )
             els.add(f"chart-{i}", "".join(parts), "draw")  # fmt: skip
+        # The chart's "so what" (clarity rule 8): a conclusion pill in the empty top-left
+        # of the plot, plus Pearson r when real series are given (computed, never typed).
+        if prop.get("conclusion"):
+            els.add(
+                "conclusion",
+                pill(x0 + usable * 0.30, py0 + 10, str(prop["conclusion"]), T["label"],
+                     fill=th.accent, text_fill=PAPER),
+            )  # fmt: skip
+        if prop.get("show_r") and data and len(data) >= 2 and len(data[0]) == len(data[1]) > 2:
+            r = pearson_r([float(v) for v in data[0]], [float(v) for v in data[1]])
+            els.add("r", pill(x0 + usable * 0.30, py0 + 10 + T["label"] * 2.2, f"r = {r:.2f}",
+                              T["label"]))  # fmt: skip
         els.add(
             "label",
             pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
@@ -766,18 +833,42 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     ncx, ncy - size / 2, label, node_w, T["node"], accent, min_h=size, th=th
                 )
                 bodies.append((card_svg, ncy - size / 2, card_bottom))
-        sx, sy = cx, bodies[0][2] + 14
+        sy = bodies[0][2] + 14
         # Arrows are drawn first (behind the nodes) but animate after their source node.
+        # Each arrow leaves from its own side of the cause so two arrows read as two causes.
         for k in range(1, len(bodies)):
             ex, ey = centers[k][0], bodies[k][1] - 14
+            sx = cx + (-1 if centers[k][0] < cx else 1) * node_w * 0.22
             els.add(
                 f"arrow-{k}",
-                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 30} {ex} {ey}" '
+                f'<path d="M{sx} {sy} L{ex} {ey}" '
                 f'fill="none" stroke="{th.line}" stroke-width="10" stroke-linecap="round"/>'
                 f'<path d="M{ex - 18} {ey - 22} L{ex} {ey} L{ex + 18} {ey - 22}" fill="none" '
                 f'stroke="{th.line}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
                 "draw",
                 seq=2 * k - 1,
+            )
+        if prop.get("false_link") and len(bodies) == 3:
+            # The link the viewer assumed (A -> B) is shown first, then crossed out on a beat
+            # (clarity rule 5). Elements: false-link (draw), false-x (pop).
+            ly = centers[1][1]
+            lx0 = centers[1][0] + centers[1][2] * 0.55
+            lx1 = centers[2][0] - centers[2][2] * 0.55
+            els.add(
+                "false-link",
+                f'<path d="M{lx0:.1f} {ly:.1f} H{lx1:.1f}" stroke="{th.line}" stroke-width="10" '
+                'stroke-dasharray="20 16" stroke-linecap="round" stroke-opacity=".8"/>',
+                "draw",
+                seq=-0.5,
+            )
+            mx = (lx0 + lx1) / 2
+            els.add(
+                "false-x",
+                f'<circle cx="{mx:.1f}" cy="{ly:.1f}" r="46" fill="{CORAL}" stroke="#111D38" stroke-width="7"/>'
+                f'<path d="M{mx - 18:.1f} {ly - 18:.1f} L{mx + 18:.1f} {ly + 18:.1f} M{mx + 18:.1f} {ly - 18:.1f} '
+                f'L{mx - 18:.1f} {ly + 18:.1f}" stroke="{PAPER}" stroke-width="11" stroke-linecap="round"/>',
+                "pop",
+                seq=-0.4,
             )
         for idx, (body, _, _) in enumerate(bodies):
             if idx == 0 and not with_icons:  # the hidden cause breathes (icons idle on their own)
@@ -1285,7 +1376,9 @@ def build_scene_html(
     cx = width / 2
     brand_size = 28 if portrait else 24
     mascot_on = scene.character.mascot == "on"
-    layout = compute_layout(width, height, mascot_on, scene.background)
+    # NODI steps down a size when concrete icons stand beside it (9:16 side_icons).
+    side_scale = 0.95 if (scene.props.get("side_icons") and height > width) else None
+    layout = compute_layout(width, height, mascot_on, scene.background, side_scale)
     th = layout.th
     els = template_art(scene, layout)
     art = els.html()
