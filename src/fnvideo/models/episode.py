@@ -95,6 +95,20 @@ class Beat(StrictModel):
         return self
 
 
+class Hold(StrictModel):
+    """An intentional visual hold (fractions of the scene) excused from the motion QA."""
+
+    start: float = Field(ge=0, le=1)
+    end: float = Field(ge=0, le=1)
+    reason: str = Field(min_length=3)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Hold:
+        if self.end <= self.start:
+            raise ValueError("hold end must be after start")
+        return self
+
+
 class SceneSpec(StrictModel):
     id: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9-]*$")
     title: str = Field(min_length=1)
@@ -108,6 +122,7 @@ class SceneSpec(StrictModel):
     duration_hint_seconds: float | None = Field(default=None, gt=0)
     source_notes: list[str] = Field(default_factory=list)
     beats: list[Beat] = Field(default_factory=list)
+    holds: list[Hold] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _caption_beats_exist(self) -> SceneSpec:

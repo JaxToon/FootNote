@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import base64
 import html
+import io
 import json
 import math
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+import numpy as np
+from PIL import Image
 
 from fnvideo.models.episode import EpisodeSpec, SceneSpec
 
@@ -225,11 +231,14 @@ def _illustrative_series(i: int) -> list[float]:
 def _dots(points: list[tuple[float, float]], color: str, r: int = 10) -> str:
     """Chart points; data-reveal is the fraction of the line-draw at which each appears."""
     n = len(points)
-    return "".join(
+    dots = [
         f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r}" fill="{color}" '
         f'data-reveal="{j / max(1, n - 1):.3f}"/>'
         for j, (px, py) in enumerate(points)
-    )
+    ]
+    if dots:  # the newest data point keeps pulsing after the line is drawn
+        dots[-1] = f'<g data-idle="pulse">{dots[-1]}</g>'
+    return "".join(dots)
 
 
 class Elements:
@@ -441,15 +450,16 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             )
         for idx, node in enumerate(nodes[:3]):
             x, y = node_pos[idx]
-            els.add(
-                f"node-{idx}",
+            body = (
                 rounded_card(x, y, node_w, node_h, PAPER, 0.98,
                              YELLOW if idx == 0 else "#FFFFFF", 0.85, 26)
                 + svg_text(x + node_w / 2, y + node_h / 2 + 12, str(node.get("label", "Node")),
                            size=29 if portrait else 26, fill="#111D38",
-                           max_chars=17 if portrait else 25),
-                seq=0 if idx == 0 else 2 * idx,
+                           max_chars=17 if portrait else 25)
             )  # fmt: skip
+            if idx == 0:  # the hidden cause breathes to keep attention on it
+                body = f'<g data-idle="pulse">{body}</g>'
+            els.add(f"node-{idx}", body, seq=0 if idx == 0 else 2 * idx)
         els.add(
             "label",
             pill(
@@ -628,6 +638,63 @@ def animation_plan(
     }
 
 
+def decor_layer(width: int, height: int, count: int = 18) -> str:
+    """Background circles; render(t) drifts each on its own seeded ellipse (data-drift)."""
+    rng = np.random.default_rng(1729)
+    out = []
+    for i in range(count):
+        ax, ay = rng.uniform(25, 70), rng.uniform(25, 70)
+        w, ph = rng.uniform(0.25, 0.6), rng.uniform(0, 2 * math.pi)
+        out.append(
+            f'<circle cx="{(i * 193 + 97) % width}" cy="{(i * 277 + 143) % height}" '
+            f'r="{10 + (i % 4) * 7}" fill="{YELLOW if i % 3 == 0 else PAPER}" opacity=".09" '
+            f'data-drift="{ax:.1f},{ay:.1f},{w:.3f},{ph:.3f}"/>'
+        )
+    # A few large soft blobs: low-frequency ambient motion that reads even when small.
+    for i in range(5):
+        ax, ay = rng.uniform(60, 120), rng.uniform(60, 120)
+        w, ph = rng.uniform(0.45, 0.75), rng.uniform(0, 2 * math.pi)
+        out.insert(
+            0,
+            f'<circle cx="{width * (0.15 + 0.18 * i):.0f}" cy="{height * (0.2 + 0.15 * ((i * 3) % 5)):.0f}" '
+            f'r="{min(width, height) * (0.16 + 0.03 * (i % 3)):.0f}" fill="{YELLOW if i % 2 else PAPER}" '
+            f'opacity=".10" filter="url(#blobBlur)" data-drift="{ax:.1f},{ay:.1f},{w:.3f},{ph:.3f}"/>',
+        )
+    return "".join(out)
+
+
+GRAIN_TILES = 3
+GRAIN_SIZE = 256
+GRAIN_OPACITY = 0.3
+
+
+@lru_cache(maxsize=1)
+def grain_tiles() -> tuple[str, ...]:
+    """Deterministic noise tiles (seeded numpy) as PNG data URIs."""
+    rng = np.random.default_rng(20261120)
+    uris = []
+    for _ in range(GRAIN_TILES):
+        noise = rng.normal(128, 42, (GRAIN_SIZE, GRAIN_SIZE)).clip(0, 255).astype(np.uint8)
+        buf = io.BytesIO()
+        Image.fromarray(noise).save(buf, format="PNG", optimize=True)
+        uris.append("data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii"))
+    return tuple(uris)
+
+
+def grain_layer(width: int, height: int) -> str:
+    patterns = "".join(
+        f'<pattern id="grain-{i}" width="{GRAIN_SIZE}" height="{GRAIN_SIZE}" patternUnits="userSpaceOnUse">'
+        f'<image href="{uri}" width="{GRAIN_SIZE}" height="{GRAIN_SIZE}"/></pattern>'
+        for i, uri in enumerate(grain_tiles())
+    )
+    rects = "".join(
+        f'<rect data-grain="{i}" width="{width}" height="{height}" fill="url(#grain-{i})" '
+        f'opacity="{GRAIN_OPACITY}" style="mix-blend-mode:overlay" visibility="{"visible" if i == 0 else "hidden"}"/>'
+        for i in range(GRAIN_TILES)
+    )
+    return f'<defs>{patterns}</defs><g id="grain" pointer-events="none">{rects}</g>'
+
+
 def highlight_line(line: str, highlighted: list[str]) -> str:
     """Escape a caption line and wrap highlighted phrases in a yellow tspan."""
     if not highlighted:
@@ -696,10 +763,8 @@ def build_scene_html(
         )
     captions_json = json.dumps(timing_scene.get("captions", []), ensure_ascii=False)
     # deterministic decor: no wall clock, no CSS animation, all movement comes from render(t).
-    decor = "".join(
-        f'<circle cx="{(i * 193 + 97) % width}" cy="{(i * 277 + 143) % height}" r="{8 + (i % 4) * 4}" fill="{YELLOW if i % 3 == 0 else PAPER}" opacity=".08"/>'
-        for i in range(18)
-    )
+    decor = decor_layer(width, height)
+    grain = grain_layer(width, height)
     mascot_layer = nodi
     nodi_js = NODI_RIG_JS if layout.nodi else ""
     nodi_state_json = json.dumps(nodi_state)
@@ -710,13 +775,14 @@ def build_scene_html(
       text{{font-synthesis:none}}
     </style></head><body><svg id="frame" xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
       <defs>
-        <radialGradient id="bgGlow" cx="50%" cy="42%" r="75%"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".10"/><stop offset="1" stop-color="#000000" stop-opacity=".10"/></radialGradient>
-        <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse"><path d="M72 0H0V72" fill="none" stroke="#FFFFFF" stroke-opacity=".035" stroke-width="1"/></pattern>
+        <radialGradient id="bgGlow" cx="50%" cy="42%" r="75%" gradientUnits="objectBoundingBox"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".10"/><stop offset="1" stop-color="#000000" stop-opacity=".10"/></radialGradient>
+        <pattern id="grid" width="72" height="72" patternUnits="userSpaceOnUse" patternTransform="translate(0 0)"><path d="M72 0H0V72" fill="none" stroke="#FFFFFF" stroke-opacity=".035" stroke-width="1"/></pattern>
+        <filter id="blobBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
         <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
         <filter id="nodiRim" x="-10%" y="-10%" width="120%" height="120%"><feMorphology in="SourceAlpha" operator="dilate" radius="9" result="d"/><feFlood flood-color="#F4F1E8" flood-opacity=".92"/><feComposite in2="d" operator="in" result="rim"/><feMerge><feMergeNode in="rim"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
       <rect width="100%" height="100%" fill="{bg}"/><rect width="100%" height="100%" fill="url(#bgGlow)"/><rect width="100%" height="100%" fill="url(#grid)"/>
-      {decor}
+      <g id="decor">{decor}</g>
       <g id="brand"><text x="64" y="{brand_size + 40}" fill="{YELLOW}" font-family="Space Grotesk, Arial, sans-serif" font-size="{brand_size + 14}" font-weight="800">F/N</text>
         <text x="145" y="{brand_size + 39}" fill="{PAPER}" opacity=".92" font-family="Space Grotesk, Arial, sans-serif" font-size="{brand_size - 4}" font-weight="700" letter-spacing="2">FOOTNOTE</text>
         <text x="{width - 64}" y="{brand_size + 36}" fill="{PAPER}" opacity=".58" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="20" letter-spacing="2">{series}</text>
@@ -725,6 +791,7 @@ def build_scene_html(
       <g id="mascot-layer" opacity="0">{mascot_layer}</g>
       {"".join(caps)}
       <text x="64" y="{height - 70}" fill="{PAPER}" opacity=".38" font-family="IBM Plex Mono, monospace" font-size="18" letter-spacing="2">BEYOND THE OBVIOUS.</text>
+      {grain}
     </svg>
     <script>{nodi_js}</script>
     <script>
@@ -778,7 +845,33 @@ def build_scene_html(
         node.setAttribute('transform', `translate(0 ${{dy}}) translate(${{cx}} ${{cy}}) scale(${{scale}}) translate(${{-cx}} ${{-cy}})`);
       }}
 
+      const FPS = {spec.meta.fps};
+      const decorNodes = [...document.querySelectorAll('#decor [data-drift]')].map((n) => [n, n.dataset.drift.split(',').map(Number)]);
+      const grainTiles = [...document.querySelectorAll('[data-grain]')];
+      const idleNodes = [...document.querySelectorAll('[data-idle]')];
+      const grid = document.getElementById('grid'), glow = document.getElementById('bgGlow');
+      function secondaryMotion(t) {{
+        // Background drift: grid slides diagonally, glow wanders (both pure functions of t).
+        grid.setAttribute('patternTransform', `translate(${{(t * 14) % 72}} ${{(t * 9) % 72}})`);
+        glow.setAttribute('cx', `${{50 + 14 * Math.sin(t * 0.45)}}%`);
+        glow.setAttribute('cy', `${{42 + 10 * Math.cos(t * 0.37)}}%`);
+        // Slow drifting decor: each circle orbits on its own (seeded) ellipse.
+        for (const [n, [ax, ay, w, ph]] of decorNodes)
+          n.setAttribute('transform', `translate(${{ax * Math.sin(t * w + ph)}} ${{ay * Math.cos(t * w * 0.8 + ph)}})`);
+        // Film grain: swap tile every 2 frames.
+        const tile = Math.floor(Math.round(t * FPS) / 2) % Math.max(1, grainTiles.length);
+        grainTiles.forEach((g, i) => g.setAttribute('visibility', i === tile ? 'visible' : 'hidden'));
+        // Idle motion on icons/accents (inner groups, so it composes with enter animations).
+        for (const n of idleNodes) {{
+          const kind = n.dataset.idle, b = n.getBBox(), cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+          if (kind === 'spin') n.setAttribute('transform', `rotate(${{(t * 18) % 360}} ${{cx}} ${{cy}})`);
+          else if (kind === 'bob') n.setAttribute('transform', `translate(0 ${{Math.sin(t * 2.2) * 8}})`);
+          else if (kind === 'pulse') {{ const s = 1 + 0.05 * Math.sin(t * 3.1); n.setAttribute('transform', `translate(${{cx}} ${{cy}}) scale(${{s}}) translate(${{-cx}} ${{-cy}})`); }}
+          else if (kind === 'sway') n.setAttribute('transform', `rotate(${{Math.sin(t * 1.7) * 4}} ${{cx}} ${{cy}})`);
+        }}
+      }}
       window.render = function(t, mouth='smile') {{
+        secondaryMotion(t);
         for (const [e, node] of nodes) if (node) animateElement(e, node, t);
         const ml=document.getElementById('mascot-layer');
         if(mascotEnabled) {{

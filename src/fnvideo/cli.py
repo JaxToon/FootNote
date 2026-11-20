@@ -198,8 +198,19 @@ def _run_motion(spec: EpisodeSpec, out: Path, video: Path | None, threshold: flo
 
 
 def _motion_holds(spec: EpisodeSpec, out: Path) -> list[tuple[float, float]]:
-    """Absolute windows of intentional holds declared in the spec (none yet)."""
-    return []
+    """Absolute [start, end) windows of the spec's intentional holds, via timing.json."""
+    path = out / "timing.json"
+    if not path.exists():
+        return []
+    timing = {s["id"]: s for s in json.loads(path.read_text(encoding="utf-8"))["scenes"]}
+    windows: list[tuple[float, float]] = []
+    for scene in spec.scenes:
+        st = timing.get(scene.id)
+        if not st:
+            continue
+        start, dur = float(st["start_seconds"]), float(st["duration_seconds"])
+        windows += [(start + h.start * dur, start + h.end * dur) for h in scene.holds]
+    return windows
 
 
 def main() -> None:
@@ -327,7 +338,8 @@ def main() -> None:
             _ensure_timing(spec, out, settings.audio_gap_seconds, allow_estimate=args.silent)
             report = render_episode(spec, out, settings, silent=args.silent)
             print(json.dumps(report, indent=2, ensure_ascii=False))
-            return
+            # Motion QA (out/.../motion.json): frozen seconds fail the render.
+            raise SystemExit(_run_motion(spec, out, Path(report["final_video"]), None))
         if args.command == "build":
             generate_tts(spec, out, settings, allow_draft=args.allow_draft, force=args.force_tts)
             print(
