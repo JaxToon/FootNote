@@ -1,0 +1,104 @@
+schema_version: 1
+meta:
+  id: fondasi-01-korelasi-bukan-kausalitas-short
+  title: "Korelasi Bukan Kausalitas"
+  series: "Fondasi"
+  episode: "01"
+  format: short
+  language: id-ID
+  fps: 30
+  width: 1080
+  height: 1920
+  paired_episode_id: fondasi-01-korelasi-bukan-kausalitas-long
+  status: draft
+voice:
+  provider: elevenlabs
+  speed: 1.0
+editorial_status: draft
+sources: []
+scenes:
+  - id: hook
+    title: "Hook"
+    purpose: "Membuka dengan miskonsepsi umum tentang korelasi dan kausalitas."
+    narration: "Dua hal terjadi bersamaan. Tapi apakah yang satu menyebabkan yang lain? Belum tentu."
+    captions:
+      - text: "Terjadi bersamaan"
+      - text: "Belum tentu saling menyebabkan"
+        highlight: ["Belum tentu"]
+    character:
+      presenter: "off"
+      mascot: "on"
+      mascot_pose: "curious"
+      mascot_outfit: "classic"
+      expression: "curious"
+    background: "navy"
+    template: "title_question"
+    props:
+      headline: "KORELASI ≠ KAUSALITAS"
+      supporting_text: "Bersamaan bukan berarti menyebabkan"
+    duration_hint_seconds: 5.0
+    source_notes: []
+  - id: intuition
+    title: "Intuisi"
+    purpose: "Memperkenalkan contoh dua variabel yang bergerak bersama."
+    narration: "Misalnya, saat penjualan es krim naik, kasus kulit terbakar matahari juga bisa ikut naik."
+    captions:
+      - text: "Es krim naik"
+      - text: "Kulit terbakar matahari ikut naik"
+    character:
+      presenter: "off"
+      mascot: "off"
+    background: "purple"
+    template: "paired_trend"
+    props:
+      variables: ["Penjualan es krim", "Kasus kulit terbakar matahari"]
+      data_label: "Ilustrasi"
+    duration_hint_seconds: 7.0
+    source_notes:
+      - "Contoh ilustratif; jangan tampilkan sebagai statistik faktual."
+  - id: hidden-factor
+    title: "Faktor ketiga"
+    purpose: "Menjelaskan variabel perancu sebagai kemungkinan penjelasan alternatif."
+    narration: "Bisa jadi ada faktor ketiga: cuaca panas. Cuaca panas mendorong orang membeli es krim, sekaligus lebih banyak beraktivitas di bawah matahari."
+    captions:
+      - text: "Ada faktor ketiga"
+        highlight: ["faktor ketiga"]
+      - text: "Cuaca panas memengaruhi keduanya"
+    character:
+      presenter: "off"
+      mascot: "off"
+    background: "teal"
+    template: "causal_diagram"
+    props:
+      nodes:
+        - id: weather
+          label: "Cuaca panas"
+        - id: ice_cream
+          label: "Penjualan es krim"
+        - id: sunburn
+          label: "Kulit terbakar matahari"
+      data_label: "Ilustrasi"
+    duration_hint_seconds: 9.0
+    source_notes: []
+  - id: takeaway
+    title: "Takeaway"
+    purpose: "Memberi aturan praktis untuk menafsirkan korelasi."
+    narration: "Jadi, korelasi menunjukkan dua hal berhubungan. Untuk menyimpulkan sebab-akibat, kita butuh bukti dan desain analisis yang lebih kuat."
+    captions:
+      - text: "Korelasi = hubungan"
+      - text: "Kausalitas = sebab-akibat"
+        highlight: ["sebab-akibat"]
+    character:
+      presenter: "off"
+      mascot: "on"
+      mascot_pose: "explaining"
+      mascot_outfit: "classic"
+      expression: "thoughtful"
+    background: "navy_dark"
+    template: "takeaway"
+    props:
+      points:
+        - "Korelasi bukan bukti sebab-akibat"
+        - "Cari faktor alternatif dan bukti kausal"
+    duration_hint_seconds: 10.0
+    source_notes: []

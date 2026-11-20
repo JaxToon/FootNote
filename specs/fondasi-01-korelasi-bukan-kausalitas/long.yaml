@@ -1,0 +1,102 @@
+schema_version: 1
+meta:
+  id: fondasi-01-korelasi-bukan-kausalitas-long
+  title: "Korelasi Bukan Kausalitas"
+  series: "Fondasi"
+  episode: "01"
+  format: long
+  language: id-ID
+  fps: 30
+  width: 1920
+  height: 1080
+  paired_episode_id: fondasi-01-korelasi-bukan-kausalitas-short
+  status: draft
+voice:
+  provider: elevenlabs
+  speed: 1.0
+editorial_status: draft
+sources: []
+scenes:
+  - id: opening
+    title: "Opening"
+    purpose: "Membangun pertanyaan utama dan menjanjikan pembahasan."
+    narration: "Kita sering melihat dua hal bergerak bersama lalu langsung menyimpulkan bahwa salah satunya menyebabkan yang lain. Di video ini, kita bedah kenapa kesimpulan itu belum tentu benar."
+    captions:
+      - text: "Korelasi bukan kausalitas"
+        highlight: ["bukan"]
+    character:
+      presenter: "off"
+      mascot: "on"
+      mascot_pose: "curious"
+      mascot_outfit: "classic"
+      expression: "curious"
+    background: "navy"
+    template: "chapter_title"
+    props:
+      chapter: "01"
+      headline: "KORELASI ≠ KAUSALITAS"
+    duration_hint_seconds: 15.0
+    source_notes: []
+  - id: intuition
+    title: "Intuisi dan contoh"
+    purpose: "Membuat korelasi terasa konkret melalui contoh ilustratif."
+    narration: "Contoh yang sering dipakai adalah penjualan es krim dan kasus kulit terbakar matahari. Keduanya bisa meningkat pada periode yang sama. Namun, itu belum menjelaskan hubungan sebab-akibat."
+    captions:
+      - text: "Dua variabel bergerak bersama"
+      - text: "Hubungan belum membuktikan sebab-akibat"
+    character:
+      presenter: "off"
+      mascot: "off"
+    background: "purple"
+    template: "paired_trend"
+    props:
+      variables: ["Penjualan es krim", "Kasus kulit terbakar matahari"]
+      data_label: "Ilustrasi"
+    duration_hint_seconds: 35.0
+    source_notes:
+      - "Contoh ilustratif; perlu referensi jika dipresentasikan sebagai temuan empiris."
+  - id: confounding
+    title: "Variabel perancu"
+    purpose: "Menjelaskan faktor ketiga yang dapat memengaruhi dua variabel."
+    narration: "Cuaca panas dapat meningkatkan penjualan es krim dan juga meningkatkan paparan sinar matahari. Faktor ketiga seperti ini disebut variabel perancu dalam konteks diagram kausal sederhana."
+    captions:
+      - text: "Faktor ketiga dapat memengaruhi keduanya"
+        highlight: ["Faktor ketiga"]
+    character:
+      presenter: "off"
+      mascot: "off"
+    background: "teal"
+    template: "causal_diagram"
+    props:
+      nodes:
+        - id: weather
+          label: "Cuaca panas"
+        - id: ice_cream
+          label: "Penjualan es krim"
+        - id: sunburn
+          label: "Paparan matahari"
+      data_label: "Ilustrasi"
+    duration_hint_seconds: 45.0
+    source_notes: []
+  - id: recap
+    title: "Recap"
+    purpose: "Merangkum batas interpretasi korelasi dan mengarahkan ke episode berikutnya."
+    narration: "Korelasi berguna untuk menemukan pola dan membangun pertanyaan. Tetapi klaim kausal membutuhkan desain penelitian, asumsi, dan bukti yang sesuai. Jadi, saat melihat dua tren bergerak bersama, pertanyaan berikutnya bukan hanya seberapa kuat hubungannya, tetapi apa lagi yang mungkin menjelaskannya."
+    captions:
+      - text: "Korelasi membantu menemukan pola"
+      - text: "Klaim kausal membutuhkan bukti"
+        highlight: ["membutuhkan bukti"]
+    character:
+      presenter: "off"
+      mascot: "on"
+      mascot_pose: "explaining"
+      mascot_outfit: "classic"
+      expression: "thoughtful"
+    background: "navy_dark"
+    template: "takeaway"
+    props:
+      points:
+        - "Gunakan korelasi untuk menemukan pola"
+        - "Jangan menyimpulkan sebab-akibat tanpa bukti"
+    duration_hint_seconds: 45.0
+    source_notes: []

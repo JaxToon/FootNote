@@ -1,0 +1,36 @@
+schema_version: 1
+meta:
+  id: example-sql-join-short
+  title: "SQL JOIN: Menggabungkan Dua Tabel"
+  series: "Data Analyst"
+  episode: "Example"
+  format: short
+  language: id-ID
+  fps: 30
+  width: 1080
+  height: 1920
+  status: draft
+voice:
+  provider: recorded
+  speed: 1.0
+editorial_status: draft
+sources: []
+scenes:
+  - id: hook
+    title: "Hook"
+    purpose: "Membuka masalah data yang tersebar di dua tabel."
+    narration: "Pernah punya nama pelanggan di satu tabel, tapi riwayat transaksinya ada di tabel lain? SQL JOIN membantu menghubungkan keduanya."
+    captions:
+      - text: "Dua tabel, satu informasi utuh"
+    character:
+      presenter: "off"
+      mascot: "on"
+      mascot_pose: "curious"
+      mascot_outfit: "classic"
+      expression: "curious"
+    background: "navy"
+    template: "title_question"
+    props:
+      headline: "KENALAN DENGAN SQL JOIN"
+    duration_hint_seconds: 5.0
+    source_notes: []
