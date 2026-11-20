@@ -14,7 +14,7 @@ def test_static_video_has_zero_motion_and_fails() -> None:
 
 def test_changing_video_is_measured_per_second() -> None:
     frames = np.zeros((60, 4, 4), dtype=np.uint8)
-    frames[30:] = np.arange(30, dtype=np.uint8)[:, None, None]  # second 1 brightens 1/frame
+    frames[30:] = np.arange(1, 31, dtype=np.uint8)[:, None, None]  # +1 gray level per frame
     per_second = motion_per_second(frames, 30)
     assert per_second[0] == 0.0
     assert abs(per_second[1] - 1.0) < 1e-6
