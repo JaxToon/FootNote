@@ -110,3 +110,45 @@ def test_fit_size_keeps_terms_on_one_line() -> None:
     assert fit_size("SAMA PANAS", 84, 900, 0.66) == 84
     assert fit_size("HUBUNGAN HILANG", 84, 700, 0.66) < 84
     assert fit_size("X" * 80, 84, 300, 0.66) == int(84 * 0.8)  # never below the floor
+
+
+def test_beat_order_flags_a_dependent_cued_on_the_first_word() -> None:
+    from fnvideo.services.clarity import beat_order_warnings
+
+    spec = _short()
+    assert beat_order_warnings(spec) == []
+    i = next(k for k, s in enumerate(spec.scenes) if s.id == "hidden-factor")
+    # "Bukan" is the first narration word -> t=0, the same time the false link starts
+    beats = [
+        Beat(at="word:Bukan", target="false-x", action="pop") if b.target == "false-x" else b
+        for b in spec.scenes[i].beats
+    ]
+    warnings = beat_order_warnings(_with_scene(spec, i, beats=beats))
+    assert [(w.dependent, w.source) for w in warnings] == [("false-x", "false-link")]
+    assert "word:Bukan" in str(warnings[0])
+
+
+def test_beat_order_flags_arrows_before_their_source_node() -> None:
+    from fnvideo.services.clarity import beat_order_warnings
+
+    spec = _short()
+    i = next(k for k, s in enumerate(spec.scenes) if s.id == "name-it")
+    beats = [b for b in spec.scenes[i].beats if b.target != "z"]
+    beats.append(Beat(at=0.9, target="z", action="pop"))  # Z now lands after its arrows
+    found = {
+        (w.dependent, w.source) for w in beat_order_warnings(_with_scene(spec, i, beats=beats))
+    }
+    assert {("arrow-zx", "z"), ("arrow-zy", "z")} <= found
+
+
+def test_beat_order_flags_an_empty_card() -> None:
+    from fnvideo.services.clarity import beat_order_warnings
+
+    spec = load_episode_spec(SHORT.with_name("long.yaml"))
+    assert beat_order_warnings(spec) == []
+    i = next(k for k, s in enumerate(spec.scenes) if s.id == "name-correlation")
+    beats = [b for b in spec.scenes[i].beats if b.target != "card"]
+    beats.append(Beat(at=0.0, target="card", action="pop"))  # card long before its term
+    warnings = beat_order_warnings(_with_scene(spec, i, beats=beats))
+    assert [(w.dependent, w.source) for w in warnings] == [("card", "term")]
+    assert "empty" in str(warnings[0])

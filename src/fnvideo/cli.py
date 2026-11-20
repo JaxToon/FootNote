@@ -16,7 +16,12 @@ from fnvideo.audio.voice_samples import inspect_voice_samples
 from fnvideo.config import load_settings
 from fnvideo.models.episode import EpisodeSpec
 from fnvideo.render.engine import render_episode
-from fnvideo.services.clarity import ClarityGateError, check_clarity, editorial_gate
+from fnvideo.services.clarity import (
+    ClarityGateError,
+    beat_order_warnings,
+    check_clarity,
+    editorial_gate,
+)
 from fnvideo.services.doctor import run_doctor
 from fnvideo.services.spec_loader import load_episode_spec
 
@@ -308,6 +313,8 @@ def main() -> None:
 
             for warning in caption_warnings(spec) + character_warnings(spec):
                 print(f"WARN: {warning}")
+            for order in beat_order_warnings(spec):
+                print(f"WARN: {order}")
             issues = check_clarity(spec)
             level = "ERROR" if spec.editorial_status == "approved" else "WARN"
             for issue in issues:
@@ -319,7 +326,13 @@ def main() -> None:
             issues = check_clarity(spec)
             for issue in issues:
                 print(issue)
-            print(("FAIL" if issues else "PASS") + f": {len(issues)} clarity issue(s)")
+            orders = beat_order_warnings(spec)  # warnings: they do not fail the lint
+            for order in orders:
+                print(f"WARN: {order}")
+            print(
+                ("FAIL" if issues else "PASS")
+                + f": {len(issues)} clarity issue(s), {len(orders)} beat-order warning(s)"
+            )
             raise SystemExit(1 if issues else 0)
         if args.command == "plan":
             print(

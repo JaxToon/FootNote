@@ -99,3 +99,20 @@ The owner flagged the arrows at 0:19–0:22. A frame-by-frame audit (one frame p
 5. **Text size** — `MIN_PORTRAIT_TEXT = 40` via `TYPE_PORTRAIT` (`label` 40, new `tick`,
    `brand`), enforced by a test over all templates.
 6. **Owner review** — silent draft rendered for review. D-018 stays *proposed*.
+
+## 6. Status (Claude Code, 2026-11-20, second pass)
+
+1. `bold/art-direction` fast-forwarded into `main` (`8a9acb8`).
+2. **D-019 in the long (16:9)**: dark saturated backgrounds, a headline on every explanation
+   scene, the short's 12-month data. The 16:9 template layouts were fixed: `causal_diagram`
+   (cause card beside its icon, arrows run down to the effects), `definition_card` (card left,
+   visual right), `question_link` (aligned arrows), `compare` (centred, readable divider).
+3. **Detail audit** of both silent renders (1 fps, 0.5 s in arrow/diagram scenes):
+   `out/fondasi-01-korelasi-bukan-kausalitas/review.md`. Fixed: overlapping chart icons, the
+   highlight that made chart labels jump, the scatter conclusion over its points, an empty
+   card, and four low-motion seconds in the long. Motion QA passes: short min 0.33, long
+   min 0.31.
+4. **Beat-order lint** in `check-clarity` / `validate` (warnings): dependents cued at or
+   before their source, and empty cards.
+5. Open owner questions: hold hidden-factor +1 s after the second arrow? Confirm D-018 / D-019?
+

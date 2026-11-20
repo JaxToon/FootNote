@@ -45,6 +45,14 @@ verbatim narration (case/punctuation ignored), (b) the first scene shows somethi
 last ≤ 2 s except the close, (d) explanation scenes have a `word:` beat. Warnings for drafts;
 errors that block `validate`, `tts` and `render` once `editorial_status: approved`.
 
+Beat-order warnings (also from `check-clarity` and `validate`; they never block): a dependent
+element must not be cued before or at the same time as what it depends on: `false-x` after
+`false-link`, `arrow-1/2` after `node-0`, `arrow-zx/zy` after `z` (and `x`/`y`), `xy` after
+`x` and `y`, `link-k` after `item-k`, `trend` after `chart`, and a chart's `conclusion`/`r` after
+its lines. A `word:` cue on the narration's first word resolves to t=0. A `card` must not
+stand empty for more than 1 s before its `term`/`definition`. Timing is estimated from the
+duration hints; re-check once real narration timing exists.
+
 Authoring lint (`fnvideo validate`): portrait captions ≤ 5 words and one line; NODI off in
 explanation templates; avoid navy backgrounds behind NODI.
 
