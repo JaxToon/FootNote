@@ -263,13 +263,15 @@ HEADLINE_MIN = 110
 DISPLAY_CAP_EM = 0.66  # Space Grotesk bold caps average advance (em), measured conservatively
 
 # 9:16 is the primary format: big type that reads on a phone at arm's length.
+# Clarity rule 9: every text on 9:16 is >= MIN_PORTRAIT_TEXT px (tested over all templates).
+MIN_PORTRAIT_TEXT = 40
 TYPE_PORTRAIT = {
     "headline": 132, "term": 100, "supporting": 46, "body": 44, "node": 42,
-    "label": 38, "caption": 56, "number": 40,
+    "label": 40, "caption": 56, "number": 40, "tick": 40, "brand": 40,
 }  # fmt: skip
 TYPE_LANDSCAPE = {
     "headline": 104, "term": 84, "supporting": 40, "body": 36, "node": 34,
-    "label": 32, "caption": 48, "number": 34,
+    "label": 32, "caption": 48, "number": 34, "tick": 30, "brand": 34,
 }  # fmt: skip
 
 
@@ -334,10 +336,10 @@ def text_block(
     return svg, y + (n - 1) * size * gap + size * 0.28
 
 
-def pill(x: float, y: float, label: str, size: int = 38, fill: str = YELLOW,
-         text_fill: str = "#111D38") -> str:  # fmt: skip
+def pill(x: float, y: float, label: str, size: int = 40, fill: str = YELLOW,
+         text_fill: str = "#111D38", *, upper: bool = True) -> str:  # fmt: skip
     """Rounded label centred on (x, y). Inter bold, not the old 22px mono."""
-    label = label.upper()
+    label = label.upper() if upper else label
     h = size * 1.75
     w = len(label) * size * 0.66 + size * 1.6
     return (
@@ -464,7 +466,7 @@ class Elements:
     `seq` its default stagger order (defaults to insertion order, i.e. z-order).
     """
 
-    def __init__(self, theme: Theme = THEME_DARK, label_size: int = 38) -> None:
+    def __init__(self, theme: Theme = THEME_DARK, label_size: int = 40) -> None:
         self.theme = theme
         self.label_size = label_size
         self.parts: list[str] = []
@@ -658,7 +660,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         colors = [YELLOW, TEAL] if th.name == "dark" else [CORAL, TEAL]
         label_space = T["label"] * 3
         legend_row = T["node"] * 2.2
-        tick = int(T["node"] * 0.8)
+        tick = T["tick"]
         x0, x1 = L.left + 30, L.right - 20
         legend_top = top + 10
         py0 = legend_top + 2 * legend_row + 90  # plot top (room for riding icons)
@@ -755,7 +757,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         if prop.get("show_r") and data and len(data) >= 2 and len(data[0]) == len(data[1]) > 2:
             r = pearson_r([float(v) for v in data[0]], [float(v) for v in data[1]])
             els.add("r", pill(x0 + usable * 0.30, py0 + 10 + T["label"] * 2.2, f"r = {r:.2f}",
-                              T["label"]))  # fmt: skip
+                              T["label"], upper=False))  # Pearson r stays lowercase  # fmt: skip
         els.add(
             "label",
             pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
@@ -1502,7 +1504,7 @@ def build_scene_html(
       </defs>
       <rect width="100%" height="100%" fill="{bg}"/><rect width="100%" height="100%" fill="url(#bgGlow)"/><rect width="100%" height="100%" fill="url(#grid)"/>
       <g id="decor">{decor}</g>
-      <text id="brand" x="{width - 56}" y="{brand_size + 60}" text-anchor="end" fill="{th.ink}" opacity=".5" font-family="Space Grotesk, sans-serif" font-size="{brand_size + 10}" font-weight="700" letter-spacing="1">F/N</text>
+      <text id="brand" x="{width - 56}" y="{brand_size + 60}" text-anchor="end" fill="{th.ink}" opacity=".5" font-family="Space Grotesk, sans-serif" font-size="{layout.type["brand"]}" font-weight="700" letter-spacing="1">F/N</text>
       <g id="scene-art">{art}</g>
       <g id="mascot-layer" opacity="0">{mascot_layer}</g>
       {"".join(caps)}

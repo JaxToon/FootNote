@@ -256,3 +256,50 @@ def test_compare_template_has_two_sides_and_divider() -> None:
     html = build_scene_html(spec, scene, {"captions": []}, {})
     for eid in ("side-0", "side-1", "vs"):
         assert f'data-id="{eid}"' in html
+
+
+PORTRAIT_TEXT_CASES = {
+    "title_question": {"headline": "FAKTA ANEH", "chapter": "1 · Masalah", "supporting_text": "Lihat lebih dekat",
+                       "side_icons": [{"icon": "ice_cream", "label": "Es krim", "trend": "up"}, {"icon": "swimmer"}]},
+    "definition_card": {"term": "CONFOUNDER", "definition": "Faktor tersembunyi.", "data_label": "ISTILAH",
+                        "icon": "sun", "icon_label": "Di sini: cuaca panas"},
+    "paired_trend": {"variables": ["A", "B"], "icons": ["ice_cream", "swimmer"],
+                     "series": [[1, 2, 3, 4, 5, 6], [2, 3, 3, 5, 6, 7]], "conclusion": "Naik bareng!",
+                     "show_r": True, "x_labels": ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]},
+    "line_chart": {"conclusion": "Naik"},
+    "scatter_regression": {"conclusion": "Kebetulan?"},
+    "causal_diagram": {"nodes": [{"label": "Cuaca panas", "icon": "sun"}, {"label": "Es krim", "icon": "ice_cream"},
+                                 {"label": "Berenang", "icon": "swimmer"}], "false_link": True},
+    "question_link": {"labels": [{"label": "Es krim", "icon": "ice_cream"}, {"icon": "question"}, "B"],
+                      "supporting_text": "Belum tentu"},
+    "takeaway": {"points": ["Satu", "Dua"]},
+    "follow_cta": {},
+    "compare": {"items": [{"term": "KORELASI", "definition": "x", "icon": "together"},
+                          {"term": "KAUSALITAS", "definition": "y", "icon": "domino"}]},
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("template", sorted(PORTRAIT_TEXT_CASES))
+@pytest.mark.parametrize("background", ["paper", "navy"])
+def test_every_text_on_portrait_is_at_least_40px(template: str, background: str) -> None:
+    """Clarity rule 9: nothing on 9:16 below MIN_PORTRAIT_TEXT, axis ticks and pills included."""
+    import re
+
+    from fnvideo.render.svg_scene import MIN_PORTRAIT_TEXT
+
+    spec = _spec("short", 1080, 1920)
+    base = spec.scenes[0]
+    mascot = "on" if template == "title_question" else "off"
+    scene = base.model_copy(
+        update={
+            "template": template,
+            "background": background,
+            "props": PORTRAIT_TEXT_CASES[template],
+            "character": base.character.model_copy(update={"mascot": mascot}),
+        }
+    )
+    timing = {"captions": [{"text": "Satu dua tiga", "highlight": [], "start": 0, "end": 1}]}
+    html = build_scene_html(spec, scene, timing, {})
+    sizes = [float(v) for v in re.findall(r'font-size="([0-9.]+)"', html)]
+    assert sizes, "no text found"
+    assert min(sizes) >= MIN_PORTRAIT_TEXT, f"{template}: smallest text {min(sizes)}px"

@@ -46,7 +46,7 @@ def test_chart_has_conclusion_and_computed_r() -> None:
     els = _els("example", mascot=False)
     assert {"conclusion", "r"} <= set(els.order())
     series = _scene("example").props["series"]
-    assert f"R = {pearson_r(*series):.2f}" in els.html()
+    assert f"r = {pearson_r(*series):.2f}" in els.html()  # Pearson r, lowercase
 
 
 def test_pearson_r() -> None:
