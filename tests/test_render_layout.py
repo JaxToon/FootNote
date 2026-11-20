@@ -208,3 +208,16 @@ def test_captions_fit_one_line_and_pilot_short_has_no_caption_warnings() -> None
     assert size == CAPTION_MIN_SIZE and len(lines) == 2
     spec = load_episode_spec(ROOT / "specs/fondasi-01-korelasi-bukan-kausalitas/short.yaml")
     assert caption_warnings(spec) == []
+
+
+def test_minimal_branding_and_no_title_pill_fallback() -> None:
+    spec = _spec("short", 1080, 1920)
+    timing = build_estimated_timing(spec, 0.35)
+    html = build_scene_html(spec, spec.scenes[0], timing["scenes"][0], timing)
+    assert "BEYOND THE OBVIOUS" not in html and ">FOOTNOTE<" not in html
+    assert '<text id="brand"' in html and 'opacity=".5"' in html and ">F/N</text>" in html
+    assert 'data-id="chapter"' not in html  # hook has no 'chapter' prop → no pill
+    scene = spec.scenes[0].model_copy(
+        update={"props": {**spec.scenes[0].props, "chapter": "Fondasi 01"}}
+    )
+    assert 'data-id="chapter"' in build_scene_html(spec, scene, timing["scenes"][0], timing)

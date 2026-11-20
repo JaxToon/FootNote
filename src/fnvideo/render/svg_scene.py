@@ -1058,7 +1058,6 @@ def build_scene_html(
     portrait = height > width
     cx = width / 2
     brand_size = 28 if portrait else 24
-    series = esc(spec.meta.series.upper())
     mascot_on = scene.character.mascot == "on"
     layout = compute_layout(width, height, mascot_on)
     els = template_art(scene, layout)
@@ -1129,14 +1128,10 @@ def build_scene_html(
       </defs>
       <rect width="100%" height="100%" fill="{bg}"/><rect width="100%" height="100%" fill="url(#bgGlow)"/><rect width="100%" height="100%" fill="url(#grid)"/>
       <g id="decor">{decor}</g>
-      <g id="brand"><text x="64" y="{brand_size + 40}" fill="{YELLOW}" font-family="Space Grotesk, sans-serif" font-size="{brand_size + 14}" font-weight="800">F/N</text>
-        <text x="145" y="{brand_size + 39}" fill="{PAPER}" opacity=".92" font-family="Space Grotesk, sans-serif" font-size="{brand_size - 4}" font-weight="700" letter-spacing="2">FOOTNOTE</text>
-        <text x="{width - 64}" y="{brand_size + 36}" fill="{PAPER}" opacity=".58" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="20" letter-spacing="2">{series}</text>
-        <path d="M64 {brand_size + 61} H{width - 64}" stroke="#FFFFFF" stroke-opacity=".16" stroke-width="2"/></g>
+      <text id="brand" x="{width - 56}" y="{brand_size + 60}" text-anchor="end" fill="{PAPER}" opacity=".5" font-family="Space Grotesk, sans-serif" font-size="{brand_size + 10}" font-weight="700" letter-spacing="1">F/N</text>
       <g id="scene-art">{art}</g>
       <g id="mascot-layer" opacity="0">{mascot_layer}</g>
       {"".join(caps)}
-      <text x="64" y="{height - 70}" fill="{PAPER}" opacity=".38" font-family="IBM Plex Mono, monospace" font-size="18" letter-spacing="2">BEYOND THE OBVIOUS.</text>
       {grain}
     </svg>
     <script>{nodi_js}</script>
