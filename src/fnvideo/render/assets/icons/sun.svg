@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <g data-idle="spin">
+    <g stroke="#111D38" stroke-width="24" stroke-linecap="round">
+      <path d="M100 14V38M100 162V186M14 100H38M162 100H186M39 39L56 56M144 144L161 161M161 39L144 56M56 144L39 161"/>
+    </g>
+    <g stroke="#F3D65B" stroke-width="10" stroke-linecap="round">
+      <path d="M100 14V38M100 162V186M14 100H38M162 100H186M39 39L56 56M144 144L161 161M161 39L144 56M56 144L39 161"/>
+    </g>
+  </g>
+  <circle cx="100" cy="100" r="46" fill="#F3D65B" stroke="#111D38" stroke-width="9"/>
+  <path d="M78 92a8 8 0 0 1 14 0M108 92a8 8 0 0 1 14 0" fill="none" stroke="#111D38" stroke-width="7" stroke-linecap="round"/>
+  <path d="M84 110q16 14 32 0" fill="none" stroke="#111D38" stroke-width="7" stroke-linecap="round"/>
+</svg>

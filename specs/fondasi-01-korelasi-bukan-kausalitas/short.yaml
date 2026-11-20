@@ -56,6 +56,7 @@ scenes:
     template: "paired_trend"
     props:
       variables: ["Penjualan es krim", "Kasus kulit terbakar matahari"]
+      icons: [ice_cream, sunburn]
       data_label: "Ilustrasi"
     duration_hint_seconds: 7.0
     source_notes:
@@ -82,10 +83,13 @@ scenes:
       nodes:
         - id: weather
           label: "Cuaca panas"
+          icon: sun
         - id: ice_cream
           label: "Penjualan es krim"
+          icon: ice_cream
         - id: sunburn
           label: "Kulit terbakar matahari"
+          icon: sunburn
       data_label: "Ilustrasi"
     duration_hint_seconds: 9.0
     source_notes: []

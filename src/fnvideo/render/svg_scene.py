@@ -281,7 +281,9 @@ def _illustrative_series(i: int) -> list[float]:
     return [0.16 + 0.12 * j + 0.11 * math.sin(j * 1.3 + i * 0.4) for j in range(6)]
 
 
-def _dots(points: list[tuple[float, float]], color: str, r: int = 10) -> str:
+def _dots(
+    points: list[tuple[float, float]], color: str, r: int = 10, *, pulse_last: bool = True
+) -> str:
     """Chart points; data-reveal is the fraction of the line-draw at which each appears."""
     n = len(points)
     dots = [
@@ -289,9 +291,49 @@ def _dots(points: list[tuple[float, float]], color: str, r: int = 10) -> str:
         f'data-reveal="{j / max(1, n - 1):.3f}"/>'
         for j, (px, py) in enumerate(points)
     ]
-    if dots:  # the newest data point keeps pulsing after the line is drawn
+    if dots and pulse_last:  # the newest data point keeps pulsing after the line is drawn
         dots[-1] = f'<g data-idle="pulse">{dots[-1]}</g>'
     return "".join(dots)
+
+
+ICON_DIR = Path(__file__).parent / "assets" / "icons"
+DEFAULT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
+
+
+def available_icons() -> list[str]:
+    return sorted(p.stem for p in ICON_DIR.glob("*.svg"))
+
+
+@lru_cache(maxsize=64)
+def icon_inner(name: str) -> str:
+    path = ICON_DIR / f"{name}.svg"
+    if not path.is_file():
+        raise ValueError(f"unknown icon {name!r}; available: {', '.join(available_icons())}")
+    text = path.read_text(encoding="utf-8")
+    return re.sub(r"^.*?<svg[^>]*>|</svg>\s*$", "", text, flags=re.S).strip()
+
+
+def icon(name: str, cx: float, cy: float, size: float) -> str:
+    """Original F/N icon (200x200 artwork) centred on (cx, cy)."""
+    s = size / 200
+    return (
+        f'<g data-icon="{esc(name)}" transform="translate({cx - size / 2:.1f} {cy - size / 2:.1f}) '
+        f'scale({s:.4f})">{icon_inner(name)}</g>'
+    )
+
+
+def label_card(
+    cx: float, y: float, label: str, width: float, size: int, accent: str, *, min_h: float = 0
+) -> tuple[str, float]:
+    """Paper label card (wrapping text) whose top edge is at y; returns (svg, bottom)."""
+    max_chars = max(6, int((width - 50) / (size * 0.56)))
+    lines = split_lines(label, max_chars)
+    h = max(min_h, len(lines) * size * 1.12 + size * 1.1)
+    text_y = y + h / 2 - (len(lines) - 1) * size * 0.56 + size * 0.36
+    svg = rounded_card(cx - width / 2, y, width, h, PAPER, 0.98, accent, 0.9, 28) + svg_text(
+        cx, text_y, label, size=size, fill="#111D38", max_chars=max_chars, line_gap=size * 1.12
+    )
+    return svg, y + h
 
 
 class Elements:
@@ -407,6 +449,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
 
     elif template == "paired_trend":
         labels = prop.get("variables", ["Variabel A", "Variabel B"])
+        icons = prop.get("icons", [])
         data = prop.get("series")
         label_space = T["label"] * 3
         if portrait:
@@ -419,34 +462,211 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             chart_w = (usable - gap) / 2
             chart_h = bottom - top - label_space
             positions = [(L.left, top), (L.left + chart_w + gap, top)]
+        tick = int(T["node"] * 0.72)
         for i, label in enumerate(labels[:2]):
             x, y = positions[i]
             color = YELLOW if i == 0 else TEAL
             values = (
                 [float(v) for v in data[i]] if data and i < len(data) else _illustrative_series(i)
             )
+            x_labels = prop.get("x_labels") or (
+                DEFAULT_MONTHS if not data and len(values) == 6 else []
+            )
+            icon_size = T["node"] * 3.2 if i < len(icons) else 0
+            head_x = x + 36 + (icon_size + 20 if icon_size else 0)
             title_svg, title_end = text_block(
-                x + chart_w / 2,
-                y + T["node"] * 1.6,
+                head_x,
+                y + 36 + T["node"] * 0.9,
                 str(label),
                 size=T["node"],
-                max_chars=L.chars(T["node"], chart_w - 80),
+                anchor="start",
+                max_chars=L.chars(T["node"], x + chart_w - head_x - 36),
             )
-            plot_top = title_end + 30
-            points = _series_points(values, x, plot_top, chart_w, y + chart_h - plot_top + 40)
-            path = "M" + " L".join(f"{px:.1f} {py:.1f}" for px, py in points)
-            els.add(
-                f"chart-{i}",
-                rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 34)
-                + title_svg
-                + f'<path d="{path}" fill="none" stroke="{color}" stroke-width="12" '
-                'stroke-linecap="round" stroke-linejoin="round"/>' + _dots(points, color, r=13),
-                "draw",
+            parts = [rounded_card(x, y, chart_w, chart_h, "#FFFFFF", 0.08, "#FFFFFF", 0.22, 34)]
+            if icon_size:
+                parts.append(
+                    icon(icons[i], x + 36 + icon_size / 2, y + 30 + icon_size / 2, icon_size)
+                )
+            parts.append(title_svg)
+            # plot box with axes; month labels under the x axis
+            px0, px1 = x + 70, x + chart_w - 50
+            py0 = max(title_end, y + 30 + icon_size) + 40
+            py1 = y + chart_h - (tick * 2.4 if x_labels else 50)
+            parts.append(
+                f'<path data-nodraw="1" d="M{px0} {py0} V{py1} H{px1}" fill="none" stroke="{PAPER}" '
+                'stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/>'
             )
+            n = len(values)
+            lo, hi = min(values), max(values)
+            span = (hi - lo) or 1.0
+            points = [
+                (
+                    px0 + 30 + j * (px1 - px0 - 60) / max(1, n - 1),
+                    py1 - 24 - (v - lo) / span * (py1 - py0 - 48),
+                )
+                for j, v in enumerate(values)
+            ]
+            for j, xl in enumerate(x_labels[:n]):
+                parts.append(
+                    svg_text(
+                        points[j][0],
+                        py1 + tick * 1.5,
+                        str(xl),
+                        size=tick,
+                        fill=muted,
+                        weight=600,
+                        max_chars=8,
+                    )
+                )
+            path = "M" + " L".join(f"{qx:.1f} {qy:.1f}" for qx, qy in points)
+            parts.append(
+                f'<path data-series="1" d="{path}" fill="none" stroke="{color}" stroke-width="12" '
+                'stroke-linecap="round" stroke-linejoin="round"/>'
+            )
+            parts.append(_dots(points, color, r=11, pulse_last=False))
+            # the line's leading point travels along the path while it draws, then pulses
+            parts.append(
+                f'<circle data-head="1" cx="{points[0][0]:.1f}" cy="{points[0][1]:.1f}" r="19" '
+                f'fill="{color}" stroke="{PAPER}" stroke-width="6"/>'
+            )
+            els.add(f"chart-{i}", "".join(parts), "draw")
         els.add(
             "label",
             pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
         )
+
+    elif template == "causal_diagram":
+        nodes = prop.get(
+            "nodes",
+            [
+                {"id": "z", "label": "Faktor ketiga"},
+                {"id": "x", "label": "Variabel A"},
+                {"id": "y", "label": "Variabel B"},
+            ],
+        )[:3]
+        label_space = T["label"] * 3
+        with_icons = any(n.get("icon") for n in nodes)
+        node_w = usable * (0.47 if portrait else 0.34)
+        zone_bottom = bottom - label_space
+        if with_icons:
+            top_icon = (zone_bottom - top) * (0.30 if portrait else 0.36)
+            low_icon = top_icon * (0.95 if portrait else 0.86)
+            centers = [
+                (cx, top + top_icon / 2 + 10, top_icon),
+                (L.left + node_w / 2, top + (zone_bottom - top) * 0.62, low_icon),
+                (L.right - node_w / 2, top + (zone_bottom - top) * 0.62, low_icon),
+            ]
+        else:
+            box_h = T["node"] * 4.6
+            centers = [
+                (cx, top + 40 + box_h / 2, box_h),
+                (L.left + node_w / 2, top + (zone_bottom - top) * 0.62, box_h),
+                (L.right - node_w / 2, top + (zone_bottom - top) * 0.62, box_h),
+            ]
+        bodies: list[tuple[str, float, float]] = []  # (svg, top_y, bottom_y)
+        for idx, node in enumerate(nodes):
+            ncx, ncy, size = centers[idx]
+            label = str(node.get("label", "Node"))
+            accent = YELLOW if idx == 0 else "#FFFFFF"
+            if with_icons:
+                ico = icon(str(node["icon"]), ncx, ncy, size) if node.get("icon") else ""
+                card_svg, card_bottom = label_card(
+                    ncx, ncy + size / 2 + 18, label, node_w, T["node"], accent
+                )
+                bodies.append((ico + card_svg, ncy - size / 2, card_bottom))
+            else:
+                card_svg, card_bottom = label_card(
+                    ncx, ncy - size / 2, label, node_w, T["node"], accent, min_h=size
+                )
+                bodies.append((card_svg, ncy - size / 2, card_bottom))
+        sx, sy = cx, bodies[0][2] + 14
+        # Arrows are drawn first (behind the nodes) but animate after their source node.
+        for k in range(1, len(bodies)):
+            ex, ey = centers[k][0], bodies[k][1] - 14
+            els.add(
+                f"arrow-{k}",
+                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 30} {ex} {ey}" '
+                f'fill="none" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>'
+                f'<path d="M{ex - 18} {ey - 22} L{ex} {ey} L{ex + 18} {ey - 22}" fill="none" '
+                f'stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
+                "draw",
+                seq=2 * k - 1,
+            )
+        for idx, (body, _, _) in enumerate(bodies):
+            if idx == 0 and not with_icons:  # the hidden cause breathes (icons idle on their own)
+                body = f'<g data-idle="pulse">{body}</g>'
+            els.add(f"node-{idx}", body, seq=0 if idx == 0 else 2 * idx)
+        els.add(
+            "label",
+            pill(
+                cx, bottom - T["label"], str(prop.get("data_label", "MODEL KONSEPTUAL")), T["label"]
+            ),
+            seq=10,
+        )
+
+    elif template == "question_link":
+        items = [
+            i if isinstance(i, dict) else {"label": str(i)}
+            for i in prop.get("labels", ["A", "?", "B"])
+        ][:3]
+        box_w = min(usable * 0.27, 300)
+        gap = (usable - 3 * box_w) / 2
+        y = top + (260 if portrait else 100)
+        below = y + box_w
+        for i, item in enumerate(items):
+            x = L.left + i * (box_w + gap)
+            fill = YELLOW if i == 1 else "#FFFFFF"
+            text_fill = "#111D38" if i == 1 else PAPER
+            body = (
+                f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="40" fill="{fill}" '
+                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="4"/>'
+            )
+            if item.get("icon"):
+                body += icon(str(item["icon"]), x + box_w / 2, y + box_w / 2, box_w * 0.74)
+                if item.get("label"):
+                    svg, end = text_block(
+                        x + box_w / 2,
+                        y + box_w + T["node"] * 1.3,
+                        str(item["label"]),
+                        size=T["node"],
+                        max_chars=L.chars(T["node"], box_w + gap * 0.8),
+                    )
+                    body += svg
+                    below = max(below, end)
+            else:
+                body += svg_text(
+                    x + box_w / 2,
+                    y + box_w / 2 + T["headline"] * 0.3,
+                    str(item.get("label", "")),
+                    size=int(T["headline"] * 0.8),
+                    fill=text_fill,
+                    weight=700,
+                    family=FONT_DISPLAY,
+                    max_chars=8,
+                )
+            els.add(f"item-{i}", body)
+            if i < len(items) - 1:
+                els.add(
+                    f"link-{i}",
+                    svg_text(
+                        x + box_w + gap / 2,
+                        y + box_w / 2 + 20,
+                        "→",
+                        size=64,
+                        fill=YELLOW,
+                        max_chars=4,
+                    ),
+                    "slide",
+                )
+        svg, _ = text_block(
+            cx,
+            below + T["supporting"] * 2.2,
+            str(prop.get("supporting_text", "Hubungan belum tentu sebab-akibat")),
+            size=T["supporting"],
+            fill=muted,
+            max_chars=L.chars(T["supporting"], usable * 0.9),
+        )
+        els.add("supporting", svg, "slide")  # fmt: skip
 
     elif template == "line_chart":
         label_space = T["label"] * 3
@@ -519,100 +739,6 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             "draw",
         )
         els.add("label", pill(cx, bottom - T["label"], "ILUSTRASI • TANPA ANGKA KLAIM", T["label"]))
-
-    elif template == "causal_diagram":
-        nodes = prop.get(
-            "nodes",
-            [
-                {"id": "z", "label": "Faktor ketiga"},
-                {"id": "x", "label": "Variabel A"},
-                {"id": "y", "label": "Variabel B"},
-            ],
-        )
-        label_space = T["label"] * 3
-        node_w = usable * (0.47 if portrait else 0.36)
-        node_h = T["node"] * 4.6
-        low_y = top + (bottom - label_space - top) * 0.62 - node_h / 2
-        if portrait:
-            node_pos = [(cx - node_w / 2, top + 40), (L.left, low_y), (L.right - node_w, low_y)]
-        else:
-            node_pos = [
-                (cx - node_w / 2, top + 10),
-                (L.left + 40, low_y),
-                (L.right - 40 - node_w, low_y),
-            ]
-        sx, sy = cx, node_pos[0][1] + node_h
-        # Arrows are drawn first (behind the cards) but animate after their source node.
-        for k, (x, y) in enumerate(node_pos[1:], start=1):
-            ex, ey = x + node_w / 2, y - 6
-            els.add(
-                f"arrow-{k}",
-                f'<path d="M{sx} {sy} Q{(sx + ex) / 2} {(sy + ey) / 2 - 30} {ex} {ey}" '
-                f'fill="none" stroke="{YELLOW}" stroke-width="10" stroke-linecap="round"/>'
-                f'<path d="M{ex - 18} {ey - 22} L{ex} {ey} L{ex + 18} {ey - 22}" fill="none" '
-                f'stroke="{YELLOW}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>',
-                "draw",
-                seq=2 * k - 1,
-            )
-        for idx, node in enumerate(nodes[:3]):
-            x, y = node_pos[idx]
-            label = str(node.get("label", "Node"))
-            lines = len(split_lines(label, L.chars(T["node"], node_w - 50)))
-            text_y = y + node_h / 2 - (lines - 1) * T["node"] * 0.55 + T["node"] * 0.35
-            body = rounded_card(x, y, node_w, node_h, PAPER, 0.98,
-                                YELLOW if idx == 0 else "#FFFFFF", 0.85, 30) + svg_text(
-                x + node_w / 2, text_y, label, size=T["node"], fill="#111D38",
-                max_chars=L.chars(T["node"], node_w - 50), line_gap=T["node"] * 1.1)  # fmt: skip
-            if idx == 0:  # the hidden cause breathes to keep attention on it
-                body = f'<g data-idle="pulse">{body}</g>'
-            els.add(f"node-{idx}", body, seq=0 if idx == 0 else 2 * idx)
-        els.add(
-            "label",
-            pill(
-                cx, bottom - T["label"], str(prop.get("data_label", "MODEL KONSEPTUAL")), T["label"]
-            ),
-            seq=10,
-        )
-
-    elif template == "question_link":
-        labels = prop.get("labels", ["A", "?", "B"])
-        box_w = min(usable * 0.27, 300)
-        gap = (usable - 3 * box_w) / 2
-        y = top + (300 if portrait else 120)
-        for i, label in enumerate(labels[:3]):
-            x = L.left + i * (box_w + gap)
-            fill = YELLOW if i == 1 else "#FFFFFF"
-            text_fill = "#111D38" if i == 1 else PAPER
-            els.add(
-                f"item-{i}",
-                f'<rect x="{x}" y="{y}" width="{box_w}" height="{box_w}" rx="40" fill="{fill}" '
-                f'fill-opacity="{1 if i == 1 else 0.10}" stroke="{fill}" stroke-opacity=".75" stroke-width="4"/>'
-                + svg_text(x + box_w / 2, y + box_w / 2 + T["headline"] * 0.3, str(label),
-                           size=int(T["headline"] * 0.8), fill=text_fill, weight=700,
-                           family=FONT_DISPLAY, max_chars=8),
-            )  # fmt: skip
-            if i < 2:
-                els.add(
-                    f"link-{i}",
-                    svg_text(
-                        x + box_w + gap / 2,
-                        y + box_w / 2 + 20,
-                        "→",
-                        size=64,
-                        fill=YELLOW,
-                        max_chars=4,
-                    ),
-                    "slide",
-                )
-        svg, _ = text_block(
-            cx,
-            y + box_w + T["supporting"] * 2.4,
-            str(prop.get("supporting_text", "Hubungan belum tentu sebab-akibat")),
-            size=T["supporting"],
-            fill=muted,
-            max_chars=L.chars(T["supporting"], usable * 0.9),
-        )
-        els.add("supporting", svg, "slide")  # fmt: skip
 
     elif template == "takeaway":
         default_points = [
@@ -979,13 +1105,18 @@ def build_scene_html(
         else if (en.action === 'slide') {{ opacity = easeOut(p); dy = (1 - easeOut(p)) * 70; }}
         // draw: strokes are drawn on; fills/text fade in quickly; chart points follow the line
         const drawP = en.action === 'draw' ? easeOut(p) : (t < en.t ? 0 : 1);
-        node.querySelectorAll('path:not([data-nodraw])').forEach((path) => {{
+        node.querySelectorAll('path:not([data-nodraw]):not([data-icon] path)').forEach((path) => {{
           const len = strokeLen(path);
           if (len > 0) {{ path.style.strokeDasharray = `${{len}}`; path.style.strokeDashoffset = String(len * (1 - drawP)); }}
         }});
         if (en.action === 'draw') {{
           node.querySelectorAll(':scope > rect, :scope > text').forEach((x) => x.setAttribute('opacity', clamp(p * 3)));
         }}
+        node.querySelectorAll('[data-head]').forEach((h) => {{
+          const series = h.parentNode.querySelector('[data-series]'), len = series ? strokeLen(series) : 0;
+          if (len > 0) {{ const pt = series.getPointAtLength(len * drawP); h.setAttribute('cx', pt.x); h.setAttribute('cy', pt.y); }}
+          h.setAttribute('r', 19 + (drawP >= 1 ? 3 * Math.sin(t * 4) : 0));
+        }});
         node.querySelectorAll('[data-reveal]').forEach((c) => c.setAttribute('opacity', smooth((drawP - Number(c.dataset.reveal)) / 0.08 + 1)));
         node.querySelectorAll('[data-count]').forEach((x) => {{
           const target = Number(x.dataset.count), dec = Number(x.dataset.decimals || 0);

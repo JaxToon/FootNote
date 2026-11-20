@@ -51,7 +51,7 @@ def test_scene_has_secondary_motion_hooks() -> None:
     html = build_scene_html(spec, spec.scenes[2], timing["scenes"][2], timing)
     assert html.count("data-drift=") >= 18
     assert html.count("data-grain=") == 3 and "mix-blend-mode:overlay" in html
-    assert 'data-idle="pulse"' in html
+    assert 'data-idle="spin"' in html  # the sun icon keeps turning
 
 
 def test_spec_holds_become_absolute_windows(tmp_path) -> None:

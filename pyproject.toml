@@ -28,7 +28,7 @@ fnvideo = "fnvideo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fnvideo = ["render/assets/*.js", "render/assets/fonts/*.ttf", "render/assets/fonts/*.txt", "render/assets/fonts/*.md"]
+fnvideo = ["render/assets/*.js", "render/assets/fonts/*.ttf", "render/assets/fonts/*.txt", "render/assets/fonts/*.md", "render/assets/icons/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
