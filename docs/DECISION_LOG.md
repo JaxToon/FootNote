@@ -71,6 +71,9 @@ contrast scenes. Background tokens added: `yellow`. Colour roles live in `Theme`
 ### D-018 — Clarity rules over visual polish (2026-11-20, proposed — owner approval pending)
 The owner reviewed a render that was technically better (motion, fonts, icons) but harder to understand. Storytelling clarity rules (CLAUDE.md "Clarity rules", docs/HANDOFF_CLARITY.md) are now mandatory for every spec. The pilot uses the ice cream / drowning example (hidden cause not obvious from the outcome's name) instead of sunburn.
 
+### D-019 — Bold dark art direction for shorts (2026-11-20, owner preference)
+The owner compared the "paper" render (D-017) with the earlier claude.ai prototype and preferred the prototype's look. Shorts now default to saturated dark backgrounds, dark caption boxes (white text, yellow highlights), and a headline on every explanation scene. D-017 stays available as a spec choice (`background: paper`) but is not the default. Supersedes D-017 for shorts.
+
 ## Change procedure
 
 Add dated entries or supersede a decision with rationale. Never erase history. A recommendation is not approval.

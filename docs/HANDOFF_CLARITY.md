@@ -40,6 +40,16 @@ The owner compared the latest pipeline render (commit `c0c513b`) with an earlier
 
 `fnvideo validate` passes with no warnings. `fnvideo preview` was checked visually. No audio was generated and nothing paid was called.
 
+## 2b. Art direction pass (second commit)
+
+The owner still found the paper render weaker than the prototype. A side-by-side comparison showed what was missing: no headline on explanation scenes, washed-out paper backgrounds, borderless captions, and empty space. The second commit adds:
+- `CAPTION_BOX` (default on): captions in a dark rounded box, white text, highlighted words in Footnote Yellow. The box is sized from the text bbox in `render()`.
+- A generic `headline` (+ `headline_accent: [words]`) for explanation templates (`TEMPLATE_HEADLINE_OK`), and accent words in `title_question` headlines.
+- `definition_card.diagram` with Z → X, Z → Y nodes plus a dashed "korelasi palsu" link, labelled with the episode example.
+- `paired_trend`: the conclusion and r pills now sit right-aligned beside the legend, so they never cover a line.
+- Spec: dark saturated backgrounds per scene, headlines, 12-month seasonal data ("naik turun bareng" is more convincing than two lines that only rise).
+- Verified with a full `--silent --allow-draft` render on top of `cb2de06`: motion QA passes (mean 1.77, min 0.37), `check-clarity` passes, and all 124 tests pass. `definition_card` now supports both `icon` (from `cb2de06`) and `diagram`; the pilot uses `diagram`.
+
 ## 3. Your tasks (in order)
 
 1. **Pull and verify:** `pytest`, `ruff check .`, `ruff format --check .`, `fnvideo validate …/short.yaml`, `fnvideo preview …/short.yaml`. Open `contact.png` with the Read tool.

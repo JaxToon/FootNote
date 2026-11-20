@@ -27,6 +27,9 @@ SCENE_BACKGROUNDS = {
     "yellow": "#F3D65B",
 }
 NAVY = "#111D38"
+# Captions sit in a dark rounded box (prototype look) instead of borderless ink.
+CAPTION_BOX = True
+CAPTION_BOX_FILL = "#0C1226"
 YELLOW = "#F3D65B"
 PAPER = "#F4F1E8"
 CORAL = "#E56B50"
@@ -388,6 +391,27 @@ ICON_DIR = Path(__file__).parent / "assets" / "icons"
 DEFAULT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
 
 
+# Templates that accept the generic per-scene `headline` prop (drawn above their content).
+TEMPLATE_HEADLINE_OK = {
+    "paired_trend", "causal_diagram", "compare", "definition_card", "question_link",
+    "line_chart", "scatter_regression",
+}  # fmt: skip
+
+
+def accent_words_svg(svg: str, words: list[str], color: str) -> str:
+    """Colour whole words of an svg_text block (text nodes only, never attributes)."""
+    if not words:
+        return svg
+    pattern = re.compile(
+        r"(?<!\w)(" + "|".join(re.escape(esc(w)) for w in words) + r")(?!\w)", re.IGNORECASE
+    )
+
+    def colour(m: re.Match[str]) -> str:
+        return ">" + pattern.sub(f'<tspan fill="{color}">\\1</tspan>', m.group(1)) + "<"
+
+    return re.sub(r">([^<]+)<", colour, svg)
+
+
 def pearson_r(a: list[float], b: list[float]) -> float:
     """Pearson correlation of two equal-length series (shown on charts; never hand-typed)."""
     n = len(a)
@@ -538,7 +562,7 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             family=FONT_DISPLAY,
             max_chars=L.chars(size, em=0.62),
         )
-        els.add("headline", svg, "slide")
+        els.add("headline", accent_words_svg(svg, accent_words, th.accent), "slide")
         if sub and with_sub:
             svg, end = text_block(
                 cx,
@@ -551,6 +575,27 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
             )
             els.add("supporting", svg, "slide")
         return end  # fmt: skip
+
+    accent_words = [str(w) for w in prop.get("headline_accent", [])]
+    # templates that lay out their own headline (headline_stack) are excluded
+    own_headline = {"title_question", "chapter_title", "takeaway", "follow_cta"}
+    if prop.get("headline") and template not in own_headline and template in TEMPLATE_HEADLINE_OK:
+        # Every scene can carry a short headline that names what the viewer is looking at
+        # (prototype look). Templates then lay out below it.
+        hsize = int(T["headline"] * 0.78)
+        svg, end = text_block(
+            cx,
+            top + hsize * 0.8,
+            str(prop["headline"]),
+            size=hsize,
+            gap=1.04,
+            weight=700,
+            family=FONT_DISPLAY,
+            fill=th.ink,
+            max_chars=L.chars(hsize, em=0.62),
+        )
+        els.add("headline", accent_words_svg(svg, accent_words, th.accent), "slide", seq=-2)
+        top = end + hsize * 0.45
 
     if template in {"title_question", "chapter_title"}:
         y = top
@@ -634,7 +679,9 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
         els.add("definition", def_svg, "slide")
         label_y = y + card_h + 90
         els.add("label", pill(cx, label_y, str(prop.get("data_label", "KEY IDEA")), T["label"]))  # fmt: skip
-        if prop.get("icon"):  # the episode's concrete instance of the term (clarity rule 6)
+        if prop.get("icon") and not prop.get(
+            "diagram"
+        ):  # the episode's concrete instance of the term (clarity rule 6)
             free = bottom - (label_y + T["label"] * 1.6)
             size = max(160.0, min(420.0, free - (T["node"] * 2.2 if prop.get("icon_label") else 0)))
             icy = label_y + T["label"] * 1.6 + size / 2 + 10
@@ -650,6 +697,64 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     max_chars=L.chars(T["node"]),
                 )
             els.add("icon", body)
+        dg = prop.get("diagram")
+        if dg:
+            # Generic Z -> X, Z -> Y picture under the card, labelled with this episode's
+            # example (clarity rule 6). Elements: z, x, y, arrow-zx, arrow-zy, xy.
+            y0 = y + card_h + 90 + T["label"] * 2.4
+            span = bottom - y0
+            r = min(96.0, span * 0.16)
+            zy, xy_y = y0 + r + 10, y0 + span * 0.62
+            dx = min(usable * 0.34, 320.0)
+
+            def node(
+                ncx: float, ncy: float, letter: str, label: str, fill: str, side: bool = False
+            ) -> str:
+                # side=True puts the label to the right (keeps Z's label off its arrows)
+                lx, ly, anchor = (
+                    (ncx + r + 22, ncy + T["node"] * 0.36, "start")
+                    if side
+                    else (ncx, ncy + r + T["node"] * 1.2, "middle")
+                )
+                return (
+                    f'<circle cx="{ncx:.1f}" cy="{ncy:.1f}" r="{r:.1f}" fill="{fill}" stroke="#111D38" '
+                    f'stroke-width="8"/>'
+                    + svg_text(ncx, ncy + r * 0.36, letter, size=int(r * 1.0), fill="#111D38",
+                               weight=700, family=FONT_DISPLAY, max_chars=3)
+                    + svg_text(lx, ly, label, size=T["node"], fill=th.ink, weight=700,
+                               anchor=anchor, max_chars=L.chars(T["node"], dx * 1.2))
+                )  # fmt: skip
+
+            def arrow(x0_: float, y0_: float, x1_: float, y1_: float) -> str:
+                ang = math.atan2(y1_ - y0_, x1_ - x0_)
+                hx = [x1_ - 34 * math.cos(ang + s_) for s_ in (-0.5, 0.5)]
+                hy = [y1_ - 34 * math.sin(ang + s_) for s_ in (-0.5, 0.5)]
+                return (
+                    f'<path d="M{x0_:.1f} {y0_:.1f} L{x1_:.1f} {y1_:.1f}" stroke="{th.line}" stroke-width="11" '
+                    'stroke-linecap="round" fill="none"/>'
+                    f'<path d="M{hx[0]:.1f} {hy[0]:.1f} L{x1_:.1f} {y1_:.1f} L{hx[1]:.1f} {hy[1]:.1f}" '
+                    f'stroke="{th.line}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+                )
+
+            els.add("z", node(cx, zy, "Z", str(dg.get("z", "faktor ketiga")), YELLOW, side=True))
+            els.add("x", node(cx - dx, xy_y, "X", str(dg.get("x", "A")), PAPER))
+            els.add("y", node(cx + dx, xy_y, "Y", str(dg.get("y", "B")), BLUE))
+            for name, sgn in (("arrow-zx", -1), ("arrow-zy", 1)):
+                ang = math.atan2(xy_y - zy, sgn * dx)
+                els.add(
+                    name,
+                    arrow(cx + (r + 14) * math.cos(ang), zy + (r + 14) * math.sin(ang),
+                          cx + sgn * dx - (r + 18) * math.cos(ang), xy_y - (r + 18) * math.sin(ang)),
+                    "draw",
+                )  # fmt: skip
+            els.add(
+                "xy",
+                f'<path d="M{cx - dx + r + 24:.1f} {xy_y:.1f} H{cx + dx - r - 24:.1f}" stroke="{th.ink}" '
+                'stroke-width="9" stroke-dasharray="18 16" stroke-linecap="round" stroke-opacity=".6"/>'
+                + svg_text(cx, xy_y - 28, str(dg.get("xy_label", "korelasi palsu")), size=T["label"],
+                           fill=th.ink, weight=700, max_chars=L.chars(T["label"], dx * 1.3)),
+                "draw",
+            )  # fmt: skip
 
     elif template == "paired_trend":
         # One plot, two lines: "moving together" reads at a glance. Each line's icon rides
@@ -746,18 +851,23 @@ def template_art(scene: SceneSpec, layout: Layout) -> Elements:
                     f'fill="{color}" stroke="{outline}" stroke-width="7"/>'
                 )
             els.add(f"chart-{i}", "".join(parts), "draw")  # fmt: skip
-        # The chart's "so what" (clarity rule 8): a conclusion pill in the empty top-left
-        # of the plot, plus Pearson r when real series are given (computed, never typed).
+        # The chart's "so what" (clarity rule 8): pills right-aligned beside the legend, above
+        # the plot so they never sit on a line; Pearson r is computed from series, never typed.
+        psize = T["label"]
+
+        def right_pill(text: str, row: float, fill: str, text_fill: str, upper: bool = True) -> str:
+            w = len(text) * psize * 0.66 + psize * 1.6
+            return pill(
+                x1 - w / 2, legend_top + legend_row * row, text, psize, fill, text_fill, upper=upper
+            )
+
         if prop.get("conclusion"):
-            els.add(
-                "conclusion",
-                pill(x0 + usable * 0.30, py0 + 10, str(prop["conclusion"]), T["label"],
-                     fill=th.accent, text_fill=PAPER),
-            )  # fmt: skip
+            els.add("conclusion", right_pill(str(prop["conclusion"]), 0.5, th.accent, NAVY))
         if prop.get("show_r") and data and len(data) >= 2 and len(data[0]) == len(data[1]) > 2:
             r = pearson_r([float(v) for v in data[0]], [float(v) for v in data[1]])
-            els.add("r", pill(x0 + usable * 0.30, py0 + 10 + T["label"] * 2.2, f"r = {r:.2f}",
-                              T["label"], upper=False))  # Pearson r stays lowercase  # fmt: skip
+            els.add(
+                "r", right_pill(f"r = {r:.2f}", 1.5, PAPER, NAVY, upper=False)
+            )  # r stays lowercase
         els.add(
             "label",
             pill(cx, bottom - T["label"], str(prop.get("data_label", "ILUSTRASI")), T["label"]),
@@ -1396,15 +1506,15 @@ def character_warnings(spec: EpisodeSpec) -> list[str]:
     return out
 
 
-def highlight_line(line: str, highlighted: list[str]) -> str:
-    """Escape a caption line and mark highlighted phrases (navy ink on a highlighter swipe)."""
+def highlight_line(line: str, highlighted: list[str], color: str = NAVY) -> str:
+    """Escape a caption line and mark highlighted phrases (coloured words)."""
     if not highlighted:
         return esc(line)
     ordered = sorted(highlighted, key=len, reverse=True)
     pattern = re.compile("(" + "|".join(re.escape(h) for h in ordered) + ")", re.IGNORECASE)
     folded = {h.casefold() for h in highlighted}
     return "".join(
-        f'<tspan data-hl="1" fill="{NAVY}" stroke="none" font-weight="900">{esc(part)}</tspan>'
+        f'<tspan data-hl="1" fill="{color}" stroke="none" font-weight="900">{esc(part)}</tspan>'
         if part.casefold() in folded
         else esc(part)
         for part in pattern.split(line)
@@ -1458,8 +1568,9 @@ def build_scene_html(
         highlighted = [str(h) for h in cap.get("highlight", []) if str(h)]
         gap = cap_size * 1.12
         first = layout.caption_base - (len(lines) - 1) * gap  # grows upward, never into the UI zone
+        hl_color = YELLOW if CAPTION_BOX else NAVY
         tspans = "".join(
-            f'<tspan x="{cx}" dy="{0 if i == 0 else gap}">{highlight_line(line, highlighted)}</tspan>'
+            f'<tspan x="{cx}" dy="{0 if i == 0 else gap}">{highlight_line(line, highlighted, hl_color)}</tspan>'
             for i, line in enumerate(lines)
         )
         # Borderless caption. Dark scenes: light text with a dark outline. Light scenes: navy
@@ -1475,6 +1586,16 @@ def build_scene_html(
             if th.caption_stroke
             else ""
         )
+        if CAPTION_BOX:
+            # Dark caption box (prototype look): reads on every background, white text,
+            # highlighted words in Footnote Yellow. The box is sized from the text in render().
+            caps.append(
+                f'<g id="caption-{idx}" opacity="0"><rect data-cap-bg="1" rx="24" fill="{CAPTION_BOX_FILL}" '
+                f'fill-opacity=".9"/><text x="{cx}" y="{first:.1f}" text-anchor="middle" fill="{PAPER}" '
+                f'font-family="{FONT_BODY}" font-size="{cap_size}" font-weight="800" letter-spacing="-.5">'
+                f"{tspans}</text></g>"
+            )
+            continue
         caps.append(
             f'<g id="caption-{idx}" opacity="0">{swipes}<text x="{cx}" y="{first:.1f}" text-anchor="middle" '
             f'fill="{th.ink}" {outline}font-family="{FONT_BODY}" font-size="{cap_size}" font-weight="800" '
@@ -1655,6 +1776,12 @@ def build_scene_html(
           el.setAttribute('opacity',active?Math.max(.0,enter):0);
           if(active) {{
             el.setAttribute('transform',`translate(0 ${{(1-enter)*14}})`);
+            const bg = el.querySelector('[data-cap-bg]');
+            if (bg) {{
+              const b = el.querySelector('text').getBBox();
+              bg.setAttribute('x', b.x - 34); bg.setAttribute('y', b.y - 12);
+              bg.setAttribute('width', b.width + 68); bg.setAttribute('height', b.height + 24);
+            }}
             const words = el.querySelectorAll('[data-hl]'), rects = el.querySelectorAll('[data-hl-rect]');
             words.forEach((w, k) => {{
               const r = rects[k], n = w.getNumberOfChars();

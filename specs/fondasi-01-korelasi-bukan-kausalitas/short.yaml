@@ -38,10 +38,11 @@ scenes:
       mascot: "on"
       mascot_pose: "wave"
       expression: "happy"
-    background: "paper"
+    background: "purple"
     template: "title_question"
     props:
-      headline: "FAKTA ANEH"
+      headline: "FAKTA ANEH SOAL DATA"
+      headline_accent: ["DATA"]
       side_icons:
         - {icon: ice_cream, label: "Es krim", trend: up}
         - {icon: swimmer, label: "Tenggelam", trend: up}
@@ -69,22 +70,25 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "paper"
+    background: "navy_dark"
     template: "paired_trend"
     props:
+      headline: "KALAU DI-PLOT..."
+      headline_accent: ["PLOT"]
       variables: ["Penjualan es krim", "Kasus tenggelam"]
       icons: [ice_cream, swimmer]
       series:
-        - [30, 38, 52, 70, 86, 95]
-        - [9, 12, 14, 21, 22, 28]
-      x_labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"]
-      conclusion: "Naik bareng!"
+        - [30, 34, 45, 57, 71, 84, 93, 88, 72, 52, 39, 31]
+        - [14, 12, 19, 20, 29, 30, 38, 30, 31, 17, 17, 11]
+      x_labels: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+      conclusion: "Bareng!"
       show_r: true
       data_label: "Ilustrasi"
     duration_hint_seconds: 4.5
     source_notes:
       - "Data ilustratif; r dihitung dari angka di spec, bukan statistik faktual."
     beats:
+      - {at: 0.0, target: headline, action: slide}
       - {at: 0.02, target: axes, action: draw}
       - {at: "word:plot", target: chart-0, action: draw, duration: 1.4}
       - {at: "word:garis", target: chart-1, action: draw, duration: 1.4}
@@ -108,7 +112,7 @@ scenes:
       mascot: "on"
       mascot_pose: "shrug"
       expression: "skeptical"
-    background: "yellow"
+    background: "coral"
     template: "title_question"
     props:
       headline: "ES KRIM → TENGGELAM?"
@@ -142,7 +146,7 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "navy"
+    background: "teal"
     template: "causal_diagram"
     props:
       nodes:
@@ -150,6 +154,8 @@ scenes:
         - {id: ice_cream, label: "Beli es krim", icon: ice_cream}
         - {id: swim, label: "Lebih banyak berenang", icon: swimmer}
       false_link: true
+      headline: "FAKTOR KETIGA"
+      headline_accent: ["KETIGA"]
       data_label: "Ilustrasi"
     duration_hint_seconds: 8.0
     beats:
@@ -157,6 +163,7 @@ scenes:
       - {at: 0.0, target: node-2, action: pop}
       - {at: 0.02, target: false-link, action: draw}
       - {at: "word:Bukan", target: false-x, action: pop}
+      - {at: "word:faktor", target: headline, action: slide}
       - {at: "caption:2", target: node-0, action: pop}
       - {at: "word:beli", target: arrow-1, action: draw}
       - {at: "word:beli", target: node-1, action: highlight}
@@ -175,22 +182,26 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "paper"
+    background: "navy"
     template: "definition_card"
     props:
       term: "CONFOUNDER"
       definition: "Faktor tersembunyi yang memengaruhi dua hal sekaligus."
       data_label: "ISTILAH"
-      icon: sun
-      icon_label: "Di sini: cuaca panas"
+      diagram: {z: "cuaca panas", x: "es krim", y: "tenggelam", xy_label: "korelasi palsu"}
     duration_hint_seconds: 3.6
     beats:
       - {at: 0.0, target: card, action: pop}
       - {at: 0.05, target: definition, action: slide}
       - {at: "word:confounder", target: term, action: pop}
       - {at: "word:confounder", target: term, action: highlight}
-      - {at: "word:tersembunyi", target: icon, action: pop}
       - {at: "word:confounder", target: label, action: pop}
+      - {at: "word:confounder", target: z, action: pop}
+      - {at: 0.75, target: arrow-zx, action: draw}
+      - {at: 0.75, target: arrow-zy, action: draw}
+      - {at: 0.12, target: x, action: pop}
+      - {at: 0.2, target: y, action: pop}
+      - {at: 0.3, target: xy, action: draw}
 
   - id: difference
     title: "Bedanya, pakai contoh"
@@ -207,7 +218,7 @@ scenes:
     character:
       presenter: "off"
       mascot: "off"
-    background: "paper"
+    background: "navy_dark"
     template: "compare"
     props:
       items:
@@ -236,7 +247,7 @@ scenes:
       mascot: "on"
       mascot_pose: "explaining"
       expression: "thinking"
-    background: "coral"
+    background: "purple"
     template: "title_question"
     props:
       headline: "CARI FAKTOR KETIGANYA"

@@ -67,7 +67,10 @@ def test_definition_card_icon_ties_term_to_example() -> None:
     spec = load_episode_spec(SPEC)
     scene = next(s for s in spec.scenes if s.template == "definition_card")
     els = template_art(scene, compute_layout(1080, 1920, False, scene.background))
-    assert "icon" in els.seq and "Di sini" in els.html()
+    # tied to the example either by an icon + "Di sini" label or by the Z/X/Y diagram
+    has_icon = "icon" in els.seq and "Di sini" in els.html()
+    has_diagram = {"z", "x", "y"} <= set(els.seq) and "cuaca panas" in els.html()
+    assert has_icon or has_diagram
 
 
 def test_nodi_yields_to_side_icons_in_portrait() -> None:
@@ -76,3 +79,25 @@ def test_nodi_yields_to_side_icons_in_portrait() -> None:
     assert NODI_SIDE_SCALE < NODI_PORTRAIT_SCALE
     lay = compute_layout(1080, 1920, True, "paper", nodi_scale=NODI_SIDE_SCALE)
     assert lay.nodi is not None and lay.nodi[2] == NODI_SIDE_SCALE
+
+
+def test_scene_headline_with_accent_on_explanation_templates() -> None:
+    els = _els("example", mascot=False)
+    assert els.order()[0] == "headline"
+    assert '<tspan fill="#F3D65B">PLOT</tspan>' in els.html()
+
+
+def test_definition_card_diagram_uses_episode_example() -> None:
+    els = _els("name-it", mascot=False)
+    assert {"z", "x", "y", "arrow-zx", "arrow-zy", "xy"} <= set(els.order())
+    assert "cuaca panas" in els.html() and "korelasi palsu" in els.html()
+
+
+def test_captions_render_in_dark_box() -> None:
+    from fnvideo.audio.timing import build_estimated_timing
+    from fnvideo.render.svg_scene import build_scene_html
+
+    spec = load_episode_spec(SPEC)
+    timing = build_estimated_timing(spec, 0.35)
+    html = build_scene_html(spec, spec.scenes[0], timing["scenes"][0], timing)
+    assert 'data-cap-bg="1"' in html
